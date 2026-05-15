@@ -1,0 +1,9 @@
+$ next dev -p 3000 2>&1 | tee dev.log
+▲ Next.js 16.1.3 (Turbopack)
+- Local:         http://localhost:3000
+- Network:       http://21.0.8.58:3000
+- Environments: .env
+
+✓ Starting...
+✓ Ready in 629ms
+ GET / 200 in 3.0s (compile: 2.8s, render: 193ms)

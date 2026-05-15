@@ -1,0 +1,217 @@
+'use client';
+
+import { useState, useEffect, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
+import Link from 'next/link';
+import {
+  Shield, Plus, Trash2, LogOut, ArrowRight, Loader2, Users, RefreshCw, AlertCircle,
+} from 'lucide-react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Badge } from '@/components/ui/badge';
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
+} from '@/components/ui/dialog';
+import {
+  AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogAction, AlertDialogCancel,
+} from '@/components/ui/alert-dialog';
+import {
+  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
+} from '@/components/ui/table';
+import { useAuth } from '@/hooks/useAuth';
+import { useTranslation } from '@/lib/i18n';
+
+interface User {
+  id: string;
+  username: string;
+  fullName: string;
+  role: 'admin' | 'user';
+  created_at: string;
+}
+
+export default function AdminContent() {
+  const router = useRouter();
+  const { user, isLoading: authLoading, logout } = useAuth();
+  const { t, dir } = useTranslation('ar');
+
+  const [users, setUsers] = useState<User[]>([]);
+  const [isLoadingUsers, setIsLoadingUsers] = useState(true);
+  const [error, setError] = useState('');
+  const [showAddUserDialog, setShowAddUserDialog] = useState(false);
+  const [newUserForm, setNewUserForm] = useState({ username: '', password: '', fullName: '' });
+  const [isAddingUser, setIsAddingUser] = useState(false);
+  const [deleteUserTarget, setDeleteUserTarget] = useState<User | null>(null);
+  const [isDeletingUser, setIsDeletingUser] = useState(false);
+
+  const fetchUsers = useCallback(async () => {
+    setIsLoadingUsers(true);
+    setError('');
+    try {
+      const res = await fetch('/api/admin/users', { credentials: 'include' });
+      if (!res.ok) {
+        const data = await res.json().catch(() => null);
+        setError(data?.error || 'فشل في تحميل المستخدمين');
+        return;
+      }
+      const data = await res.json();
+      setUsers(data);
+    } catch {
+      setError('تعذر الاتصال بالخادم');
+    } finally {
+      setIsLoadingUsers(false);
+    }
+  }, [router]);
+
+  useEffect(() => {
+    if (user) fetchUsers();
+  }, [user, fetchUsers]);
+
+  const handleAddUser = async () => {
+    if (!newUserForm.username.trim() || !newUserForm.password.trim() || !newUserForm.fullName.trim()) return;
+    setIsAddingUser(true);
+    setError('');
+    try {
+      const res = await fetch('/api/admin/users', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: newUserForm.username.trim(), password: newUserForm.password, fullName: newUserForm.fullName.trim() }),
+        credentials: 'include',
+      });
+      const data = await res.json();
+      if (!res.ok) { setError(data.error || 'فشل في إضافة المستخدم'); return; }
+      setShowAddUserDialog(false);
+      setNewUserForm({ username: '', password: '', fullName: '' });
+      await fetchUsers();
+    } catch { setError('تعذر الاتصال بالخادم'); } finally { setIsAddingUser(false); }
+  };
+
+  const handleDeleteUser = async () => {
+    if (!deleteUserTarget) return;
+    setIsDeletingUser(true);
+    setError('');
+    try {
+      const res = await fetch(`/api/admin/users/${deleteUserTarget.id}`, { method: 'DELETE', credentials: 'include' });
+      if (!res.ok) { const data = await res.json(); setError(data.error || 'فشل في حذف المستخدم'); return; }
+      setDeleteUserTarget(null);
+      await fetchUsers();
+    } catch { setError('تعذر الاتصال بالخادم'); } finally { setIsDeletingUser(false); }
+  };
+
+  const handleLogout = () => {
+    logout();
+  };
+
+  const formatDate = (dateStr: string) => {
+    try { return new Date(dateStr).toLocaleDateString('ar-SY', { year: 'numeric', month: 'short', day: 'numeric' }); } catch { return dateStr; }
+  };
+
+  if (authLoading) {
+    return <div dir={dir} className="min-h-screen flex items-center justify-center"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>;
+  }
+
+  return (
+    <div dir={dir} className="min-h-screen flex flex-col bg-gray-50/80">
+      <header className="sticky top-0 z-30 bg-white border-b shadow-sm">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-emerald-600 shadow-md"><Shield className="w-5 h-5 text-white" /></div>
+            <div>
+              <h1 className="text-lg sm:text-xl font-bold text-gray-800">{t.userManagement}</h1>
+              <p className="text-xs text-gray-500 hidden sm:block">لوحة تحكم المشرفين — B.S Evaluation</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" asChild className="gap-1.5 text-sm"><Link href="/"><ArrowRight className="w-4 h-4" /><span className="hidden sm:inline">الرئيسية</span></Link></Button>
+            <Button variant="ghost" size="sm" onClick={handleLogout} className="gap-1.5 text-sm text-red-600 hover:text-red-700 hover:bg-red-50"><LogOut className="w-4 h-4" /><span className="hidden sm:inline">خروج</span></Button>
+          </div>
+        </div>
+      </header>
+
+      <main className="flex-1 max-w-7xl mx-auto w-full px-4 sm:px-6 py-6 space-y-6">
+        {error && (
+          <div className="bg-red-50 border border-red-200 text-red-800 rounded-xl px-4 py-3 flex items-center gap-3 text-sm">
+            <AlertCircle className="w-5 h-5 shrink-0 text-red-500" />
+            <span className="flex-1">{error}</span>
+            <Button variant="ghost" size="sm" onClick={() => setError('')} className="text-red-600 hover:text-red-800 hover:bg-red-100 h-auto px-2">✕</Button>
+          </div>
+        )}
+
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 sm:gap-4">
+          <Card className="py-4"><CardContent className="px-4"><div className="flex items-center gap-3"><div className="flex items-center justify-center w-10 h-10 rounded-lg bg-emerald-100"><Users className="w-5 h-5 text-emerald-600" /></div><div><p className="text-2xl font-bold text-gray-800">{users.length}</p><p className="text-xs text-gray-500">المستخدمون</p></div></div></CardContent></Card>
+          <Card className="py-4"><CardContent className="px-4"><div className="flex items-center gap-3"><div className="flex items-center justify-center w-10 h-10 rounded-lg bg-blue-100"><Shield className="w-5 h-5 text-blue-600" /></div><div><p className="text-2xl font-bold text-gray-800">{users.filter((u) => u.role === 'admin').length}</p><p className="text-xs text-gray-500">المشرفون</p></div></div></CardContent></Card>
+          <Card className="py-4 col-span-2 sm:col-span-1"><CardContent className="px-4"><div className="flex items-center gap-3"><div className="flex items-center justify-center w-10 h-10 rounded-lg bg-amber-100"><Users className="w-5 h-5 text-amber-600" /></div><div><p className="text-2xl font-bold text-gray-800">{users.filter((u) => u.role === 'user').length}</p><p className="text-xs text-gray-500">المستخدمون العاديون</p></div></div></CardContent></Card>
+        </div>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between gap-4">
+            <CardTitle className="text-lg font-bold text-gray-800 flex items-center gap-2"><Users className="w-5 h-5 text-emerald-600" />قائمة المستخدمين</CardTitle>
+            <div className="flex items-center gap-2">
+              <Button variant="outline" size="sm" onClick={fetchUsers} disabled={isLoadingUsers} className="gap-1.5"><RefreshCw className={`w-4 h-4 ${isLoadingUsers ? 'animate-spin' : ''}`} /><span className="hidden sm:inline">تحديث</span></Button>
+              <Button size="sm" onClick={() => setShowAddUserDialog(true)} className="gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white"><Plus className="w-4 h-4" /><span>إضافة مستخدم</span></Button>
+            </div>
+          </CardHeader>
+          <CardContent className="px-0 pb-0">
+            {isLoadingUsers && users.length === 0 && (
+              <div className="flex flex-col items-center justify-center py-16 text-gray-400"><Loader2 className="w-8 h-8 animate-spin mb-3" /><p className="text-sm">جاري تحميل المستخدمين...</p></div>
+            )}
+            {!isLoadingUsers && users.length === 0 && (
+              <div className="flex flex-col items-center justify-center py-16 text-gray-400"><Users className="w-12 h-12 mb-3 opacity-50" /><p className="text-sm font-medium">لا يوجد مستخدمون حالياً</p><p className="text-xs mt-1">اضغط على &quot;إضافة مستخدم&quot; لإنشاء حساب جديد</p></div>
+            )}
+            {users.length > 0 && (
+              <Table>
+                <TableHeader>
+                  <TableRow className="bg-gray-50/80 hover:bg-gray-50/80">
+                    <TableHead className="text-right font-semibold text-gray-600 px-4 py-3">اسم المستخدم</TableHead>
+                    <TableHead className="text-right font-semibold text-gray-600 px-4 py-3 hidden sm:table-cell">الاسم الكامل</TableHead>
+                    <TableHead className="text-center font-semibold text-gray-600 px-4 py-3">الدور</TableHead>
+                    <TableHead className="text-right font-semibold text-gray-600 px-4 py-3 hidden md:table-cell">تاريخ التسجيل</TableHead>
+                    <TableHead className="text-center font-semibold text-gray-600 px-4 py-3">الإجراءات</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {users.map((u) => (
+                    <TableRow key={u.id} className="group">
+                      <TableCell className="px-4 py-3"><p className="font-medium text-gray-800">{u.username}</p><p className="text-xs text-gray-500 sm:hidden">{u.fullName}</p></TableCell>
+                      <TableCell className="px-4 py-3 hidden sm:table-cell text-gray-700">{u.fullName}</TableCell>
+                      <TableCell className="px-4 py-3 text-center"><Badge variant={u.role === 'admin' ? 'default' : 'secondary'} className={u.role === 'admin' ? 'bg-emerald-600 text-white hover:bg-emerald-700' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}>{u.role === 'admin' ? 'مشرف' : 'مستخدم'}</Badge></TableCell>
+                      <TableCell className="px-4 py-3 text-gray-500 text-sm hidden md:table-cell">{formatDate(u.created_at)}</TableCell>
+                      <TableCell className="px-4 py-3"><div className="flex items-center justify-center gap-1"><Button variant="ghost" size="icon" onClick={() => setDeleteUserTarget(u)} disabled={u.role === 'admin'} title={u.role === 'admin' ? 'لا يمكن حذف مشرف' : 'حذف المستخدم'} className="h-8 w-8 text-red-500 hover:text-red-700 hover:bg-red-50 disabled:opacity-30"><Trash2 className="w-4 h-4" /></Button></div></TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            )}
+          </CardContent>
+        </Card>
+      </main>
+
+      <Dialog open={showAddUserDialog} onOpenChange={setShowAddUserDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader><DialogTitle className="flex items-center gap-2 text-gray-800"><Plus className="w-5 h-5 text-emerald-600" />إضافة مستخدم جديد</DialogTitle><DialogDescription>أدخل بيانات المستخدم الجديد لإنشاء حساب</DialogDescription></DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-2"><Label htmlFor="new-username" className="font-medium">اسم المستخدم</Label><Input id="new-username" placeholder="مثال: engineer1" value={newUserForm.username} onChange={(e) => setNewUserForm((p) => ({ ...p, username: e.target.value }))} disabled={isAddingUser} className="text-right" /></div>
+            <div className="space-y-2"><Label htmlFor="new-password" className="font-medium">كلمة المرور</Label><Input id="new-password" type="password" placeholder="4 أحرف على الأقل" value={newUserForm.password} onChange={(e) => setNewUserForm((p) => ({ ...p, password: e.target.value }))} disabled={isAddingUser} className="text-right" /></div>
+            <div className="space-y-2"><Label htmlFor="new-fullname" className="font-medium">الاسم الكامل</Label><Input id="new-fullname" placeholder="مثال: أحمد محمد" value={newUserForm.fullName} onChange={(e) => setNewUserForm((p) => ({ ...p, fullName: e.target.value }))} disabled={isAddingUser} className="text-right" /></div>
+          </div>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button variant="outline" onClick={() => { setShowAddUserDialog(false); setNewUserForm({ username: '', password: '', fullName: '' }); }} disabled={isAddingUser}>إلغاء</Button>
+            <Button onClick={handleAddUser} disabled={isAddingUser || !newUserForm.username.trim() || !newUserForm.password.trim() || !newUserForm.fullName.trim()} className="gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white">{isAddingUser ? (<><Loader2 className="w-4 h-4 animate-spin" />جاري الإضافة...</>) : (<><Plus className="w-4 h-4" />إضافة المستخدم</>)}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <AlertDialog open={!!deleteUserTarget} onOpenChange={(open) => !open && setDeleteUserTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader><AlertDialogTitle className="flex items-center gap-2 text-red-700"><AlertCircle className="w-5 h-5" />تأكيد حذف المستخدم</AlertDialogTitle><AlertDialogDescription className="text-gray-600 leading-relaxed">هل أنت متأكد من حذف المستخدم <span className="font-bold text-gray-800">{deleteUserTarget?.fullName}</span> ({deleteUserTarget?.username})؟<br />سيتم حذف جميع بياناته نهائياً.</AlertDialogDescription></AlertDialogHeader>
+          <AlertDialogFooter className="gap-2 sm:gap-0">
+            <AlertDialogCancel disabled={isDeletingUser}>إلغاء</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDeleteUser} disabled={isDeletingUser} className="bg-red-600 hover:bg-red-700 text-white gap-1.5">{isDeletingUser ? (<><Loader2 className="w-4 h-4 animate-spin" />جاري الحذف...</>) : (<><Trash2 className="w-4 h-4" />حذف المستخدم</>)}</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </div>
+  );
+}
