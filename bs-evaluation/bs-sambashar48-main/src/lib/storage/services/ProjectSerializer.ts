@@ -1,21 +1,26 @@
 /**
  * B.S Evaluation — Project Serializer
  * تحويل بيانات المشروع إلى ملف .bsproj والعكس
- * ملف .bsproj = JSON مضغوط (base64) يحتوي كل البيانات + الصور
+ * ملف .bsproj = JSON مضغوط (GZIP عبر CompressionStream) يحتوي كل البيانات + الصور
+ *
+ * نظام مزدوج:
+ * - مسار A: File System API (Chrome فقط) → حفظ مباشر في مجلد
+ * - مسار B: Download/Upload (كل المتصفحات) → تحميل/رفع ملف .bsproj
  */
 
 import type { BSProjectFile, LocalProject, ProjectSection } from '../types/storage.types';
 import { PROJECT_SECTIONS } from '../types/storage.types';
 
 const FILE_FORMAT = 'bsproj';
-const FILE_VERSION = 1;
+const FILE_VERSION = 2; // v2: ضغط حقيقي
 
 export class ProjectSerializer {
   /**
-   * تحويل مشروع محلي إلى سلسلة .bsproj
-   * Serialize a local project into a .bsproj string
+   * تحويل مشروع محلي إلى Blob مضغوط (.bsproj)
+   * يستخدم CompressionStream (GZIP) في Chrome/Firefox
+   * يُرجع Blob بدلاً من string لدعم الضغط الثنائي
    */
-  static serialize(project: LocalProject): string {
+  static async serializeToBlob(project: LocalProject): Promise<Blob> {
     const file: BSProjectFile = {
       format: FILE_FORMAT,
       version: FILE_VERSION,
@@ -31,33 +36,118 @@ export class ProjectSerializer {
 
     const jsonString = JSON.stringify(file);
 
-    // Compress using base64 encoding
-    // For production, we could use CompressionStream API,
-    // but base64 is universally compatible
-    try {
-      // Try to use CompressionStream for better compression
-      if (typeof CompressionStream !== 'undefined') {
-        // We'll use plain JSON with a marker for now
-        // CompressionStream is async and would complicate the flow
-        // The JSON is already compact enough for typical project data
-        return jsonString;
+    // محاولة ضغط GZIP عبر CompressionStream
+    if (typeof CompressionStream !== 'undefined') {
+      try {
+        const cs = new CompressionStream('gzip');
+        const writer = cs.writable.getWriter();
+        const reader = cs.readable.getReader();
+
+        writer.write(new TextEncoder().encode(jsonString));
+        writer.close();
+
+        const chunks: Uint8Array[] = [];
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          chunks.push(value);
+        }
+
+        // تجميع القطع
+        const totalLength = chunks.reduce((sum, chunk) => sum + chunk.length, 0);
+        const compressed = new Uint8Array(totalLength);
+        let offset = 0;
+        for (const chunk of chunks) {
+          compressed.set(chunk, offset);
+          offset += chunk.length;
+        }
+
+        return new Blob([compressed], { type: 'application/octet-stream' });
+      } catch {
+        // فشل الضغط — نستخدم JSON نصي
       }
-    } catch {
-      // CompressionStream not available
     }
 
-    return jsonString;
+    // Fallback: JSON نصي بدون ضغط
+    return new Blob([jsonString], { type: 'application/json' });
   }
 
   /**
-   * تحويل سلسلة .bsproj إلى مشروع محلي
-   * Deserialize a .bsproj string into a local project
+   * تحويل مشروع محلي إلى سلسلة JSON (للتوافق مع النظام القديم)
+   */
+  static serialize(project: LocalProject): string {
+    const file: BSProjectFile = {
+      format: FILE_FORMAT,
+      version: FILE_VERSION,
+      meta: {
+        name: project.name,
+        createdAt: project.createdAt,
+        updatedAt: project.updatedAt,
+        appVersion: '1.0.0',
+      },
+      data: project.data,
+      images: Object.keys(project.images).length > 0 ? project.images : undefined,
+    };
+
+    return JSON.stringify(file);
+  }
+
+  /**
+   * تحويل ملف .bsproj (مضغوط أو نصي) إلى مشروع محلي
+   * يدعم كلاً من GZIP و JSON النصي
+   */
+  static async deserializeFromBlob(blob: Blob): Promise<LocalProject> {
+    // محاولة فك ضغط GZIP
+    if (typeof DecompressionStream !== 'undefined' && blob.type === 'application/octet-stream') {
+      try {
+        const ds = new DecompressionStream('gzip');
+        const writer = ds.writable.getWriter();
+        const reader = ds.readable.getReader();
+
+        writer.write(await blob.arrayBuffer());
+        writer.close();
+
+        const chunks: Uint8Array[] = [];
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          chunks.push(value);
+        }
+
+        const totalLength = chunks.reduce((sum, chunk) => sum + chunk.length, 0);
+        const decompressed = new Uint8Array(totalLength);
+        let offset = 0;
+        for (const chunk of chunks) {
+          decompressed.set(chunk, offset);
+          offset += chunk.length;
+        }
+
+        const jsonString = new TextDecoder().decode(decompressed);
+        return this.parseProject(jsonString);
+      } catch {
+        // فشل فك الضغط — نحاول كـ JSON نصي
+      }
+    }
+
+    // Fallback: قراءة كـ JSON نصي
+    const text = await blob.text();
+    return this.parseProject(text);
+  }
+
+  /**
+   * تحويل سلسلة .bsproj إلى مشروع محلي (للتوافق مع النظام القديم)
    */
   static deserialize(content: string): LocalProject {
+    return this.parseProject(content);
+  }
+
+  /**
+   * تحليل محتوى .bsproj JSON
+   */
+  private static parseProject(content: string): LocalProject {
     try {
       const file: BSProjectFile = JSON.parse(content);
 
-      // Validate format
       if (file.format !== FILE_FORMAT) {
         throw new Error('صيغة الملف غير مدعومة');
       }
@@ -66,7 +156,6 @@ export class ProjectSerializer {
         console.warn(`إصدار الملف (${file.version}) أحدث من المدعوم (${FILE_VERSION})`);
       }
 
-      // Build full project data with defaults for missing sections
       const data: Record<string, Record<string, unknown>> = {};
       for (const section of PROJECT_SECTIONS) {
         data[section] = file.data?.[section] || {};
@@ -74,7 +163,7 @@ export class ProjectSerializer {
 
       return {
         id: this.generateId(),
-        userId: '', // Will be set by the caller
+        userId: '',
         name: file.meta?.name || 'مشروع بدون اسم',
         isCurrent: false,
         data: data as Record<ProjectSection, Record<string, unknown>>,
@@ -149,5 +238,12 @@ export class ProjectSerializer {
    */
   static estimateSize(project: LocalProject): number {
     return new Blob([this.serialize(project)]).size;
+  }
+
+  /**
+   * الكشف عن دعم File System Access API
+   */
+  static supportsFileSystemAPI(): boolean {
+    return typeof window !== 'undefined' && 'showDirectoryPicker' in window;
   }
 }

@@ -1,87 +1,114 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAdmin } from '@/lib/auth';
-import { addDevice, toggleDevice, deleteDevice, getDevicesByUser } from '@/lib/db-operations';
+import {
+  getDevicesByUser,
+  approveDevice,
+  rejectDevice,
+  toggleDevice,
+  deleteDevice,
+  getPendingDevices,
+} from '@/lib/db-operations';
 
+/** GET — جلب أجهزة مستخدم أو جميع الأجهزة المعلقة */
 export async function GET(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    await requireAdmin();
+    const admin = await requireAdmin(request);
+    if (!admin) {
+      return NextResponse.json({ error: 'غير مصرح' }, { status: 401 });
+    }
+
     const { id } = await params;
+    const url = new URL(request.url);
+    const pending = url.searchParams.get('pending');
+
+    if (pending === 'all') {
+      // جلب جميع الأجهزة المعلقة من كل المستخدمين
+      const devices = await getPendingDevices();
+      return NextResponse.json({ devices });
+    }
+
+    // جلب أجهزة مستخدم محدد
     const devices = await getDevicesByUser(id);
-    return NextResponse.json(devices);
-  } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : 'خطأ';
-    if (message === 'Unauthorized') {
-      return NextResponse.json({ error: 'غير مصرح' }, { status: 401 });
-    }
-    if (message === 'Forbidden') {
-      return NextResponse.json({ error: message }, { status: 403 });
-    }
-    return NextResponse.json({ error: message }, { status: 500 });
+    return NextResponse.json({ devices });
+  } catch {
+    return NextResponse.json({ error: 'خطأ في الخادم' }, { status: 500 });
   }
 }
 
-export async function POST(request: NextRequest) {
+/** POST — الموافقة على جهاز */
+export async function POST(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
   try {
-    await requireAdmin();
+    const admin = await requireAdmin(request);
+    if (!admin) {
+      return NextResponse.json({ error: 'غير مصرح' }, { status: 401 });
+    }
+
+    const { id } = await params;
     const body = await request.json();
-    const { userId, deviceId, deviceName } = body;
+    const { action } = body; // 'approve' | 'reject'
 
-    if (!userId || !deviceId || !deviceName) {
-      return NextResponse.json({ error: 'جميع الحقول مطلوبة' }, { status: 400 });
+    if (action === 'approve') {
+      await approveDevice(id, admin.userId);
+      return NextResponse.json({ message: 'تمت الموافقة على الجهاز بنجاح' });
     }
 
-    await addDevice(userId, deviceId, deviceName);
-    return NextResponse.json({ success: true }, { status: 201 });
-  } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : 'خطأ';
-    if (message === 'Unauthorized') {
-      return NextResponse.json({ error: 'غير مصرح' }, { status: 401 });
+    if (action === 'reject') {
+      await rejectDevice(id);
+      return NextResponse.json({ message: 'تم رفض الجهاز' });
     }
-    if (message === 'Forbidden') {
-      return NextResponse.json({ error: message }, { status: 403 });
-    }
-    return NextResponse.json({ error: message }, { status: 400 });
+
+    return NextResponse.json({ error: 'إجراء غير صالح' }, { status: 400 });
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : 'خطأ في الخادم';
+    return NextResponse.json({ error: msg }, { status: 500 });
   }
 }
 
-export async function PUT(request: NextRequest) {
+/** PUT — تفعيل/تعطيل جهاز */
+export async function PUT(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
   try {
-    await requireAdmin();
+    const admin = await requireAdmin(request);
+    if (!admin) {
+      return NextResponse.json({ error: 'غير مصرح' }, { status: 401 });
+    }
+
+    const { id } = await params;
     const body = await request.json();
-    const { deviceId, isActive } = body;
+    const { isActive } = body;
 
-    await toggleDevice(deviceId, isActive);
-    return NextResponse.json({ success: true });
-  } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : 'خطأ';
-    if (message === 'Unauthorized') {
-      return NextResponse.json({ error: 'غير مصرح' }, { status: 401 });
-    }
-    if (message === 'Forbidden') {
-      return NextResponse.json({ error: message }, { status: 403 });
-    }
-    return NextResponse.json({ error: message }, { status: 400 });
+    await toggleDevice(id, isActive);
+    return NextResponse.json({
+      message: isActive ? 'تم تفعيل الجهاز' : 'تم تعطيل الجهاز',
+    });
+  } catch {
+    return NextResponse.json({ error: 'خطأ في الخادم' }, { status: 500 });
   }
 }
 
-export async function DELETE(request: NextRequest) {
+/** DELETE — حذف جهاز */
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
   try {
-    await requireAdmin();
-    const { deviceId } = await request.json();
-
-    await deleteDevice(deviceId);
-    return NextResponse.json({ success: true });
-  } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : 'خطأ';
-    if (message === 'Unauthorized') {
+    const admin = await requireAdmin(request);
+    if (!admin) {
       return NextResponse.json({ error: 'غير مصرح' }, { status: 401 });
     }
-    if (message === 'Forbidden') {
-      return NextResponse.json({ error: message }, { status: 403 });
-    }
-    return NextResponse.json({ error: message }, { status: 400 });
+
+    const { id } = await params;
+    await deleteDevice(id);
+    return NextResponse.json({ message: 'تم حذف الجهاز' });
+  } catch {
+    return NextResponse.json({ error: 'خطأ في الخادم' }, { status: 500 });
   }
 }

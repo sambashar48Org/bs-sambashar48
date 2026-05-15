@@ -16,13 +16,18 @@ CREATE TABLE IF NOT EXISTS users (
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
--- Create devices table
+-- Create devices table (Hybrid Device ID system)
 CREATE TABLE IF NOT EXISTS devices (
   id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
   user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  device_id TEXT NOT NULL,
-  device_name TEXT NOT NULL DEFAULT 'Unknown Device',
-  is_active BOOLEAN NOT NULL DEFAULT true,
+  device_id TEXT NOT NULL,                            -- Hybrid Fingerprint (SHA-256)
+  device_fingerprint TEXT NOT NULL DEFAULT '',        -- البصمة الهجينة الكاملة
+  device_name TEXT NOT NULL DEFAULT 'Unknown Device', -- وصف الجهاز للعرض
+  is_active BOOLEAN NOT NULL DEFAULT false,           -- يحتاج موافقة المدير أولاً
+  is_approved BOOLEAN NOT NULL DEFAULT false,          -- تمت الموافقة من المدير
+  approved_by UUID REFERENCES users(id),               -- من وافق (المدير)
+  approved_at TIMESTAMPTZ,                             -- وقت الموافقة
+  last_seen_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),    -- آخر استخدام
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   UNIQUE(user_id, device_id)
 );

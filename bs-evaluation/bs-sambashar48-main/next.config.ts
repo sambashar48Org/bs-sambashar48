@@ -1,10 +1,14 @@
 import type { NextConfig } from "next";
+import withSerwist from "@serwist/next";
 
 const nextConfig: NextConfig = {
   typescript: {
     ignoreBuildErrors: true,
   },
   reactStrictMode: false,
+
+  // إعداد Turbopack (الافتراضي في Next.js 16)
+  turbopack: {},
 
   async headers() {
     return [
@@ -26,4 +30,7 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default nextConfig;
+export default withSerwist({
+  swSrc: "src/app/sw.ts",
+  swDest: "public/sw.js",
+})(nextConfig);

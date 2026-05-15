@@ -45,3 +45,33 @@ Stage Summary:
 - تحديثان في constants.ts
 - إصلاح واحد في pdf-report.tsx
 - البناء يمر بنجاح
+
+---
+Task ID: 2
+Agent: Main Agent
+Task: المرحلة الثانية — البنية التحتية الجديدة (بصمة هجينة + PWA + bsproj + صلاحيات)
+
+Work Log:
+- تثبيت @fingerprintjs/fingerprintjs + @serwist/next + @serwist/strategies + @serwist/precaching
+- إنشاء src/lib/device-fingerprint.ts — بصمة هجينة (FingerprintJS + Canvas + WebGL + SHA-256)
+- تحديث supabase-setup.sql — إضافة device_fingerprint, is_approved, approved_by, approved_at, last_seen_at
+- تحديث src/lib/db-operations.ts — إضافة checkDevice(), registerDevice(), approveDevice(), rejectDevice(), getPendingDevices()
+- تحديث src/app/api/auth/login/route.ts — فحص البصمة عند الدخول + حالة pending_approval
+- إنشاء src/components/shared/PendingApproval.tsx — واجهة بانتظار الموافقة
+- تحديث src/app/login/page.tsx — دعم البصمة الهجينة + عرض PendingApproval
+- تحديث src/app/api/admin/users/[id]/devices/route.ts — موافقة/رفض/تفعيل/تعطيل
+- تحديث src/lib/storage/services/ProjectSerializer.ts — ضغط حقيقي GZIP (v2)
+- تحديث src/lib/storage/adapters/DownloadAdapter.ts — استخدام serializeToBlob/deserializeFromBlob
+- إنشاء src/app/sw.ts — Service Worker مع @serwist/strategies
+- تحديث next.config.ts — مع withSerwist
+- تحديث src/components/shared/ServiceWorkerRegistrar.tsx — تسجيل serwist SW
+- تحديث package.json — build مع --webpack
+- تصحيح pdf-report.tsx — الإجهادات المسموحة (من المرحلة الأولى)
+- البناء ينجح بدون أخطاء ✅
+
+Stage Summary:
+- نظام البصمة الهجينة كامل (توليد + فحص + موافقة + رفض)
+- واجهة PendingApproval مع فحص تلقائي كل 30 ثانية
+- ملف .bsproj يدعم ضغط GZIP حقيقي
+- PWA مع @serwist/next مع استراتيجيات تخزين متقدمة
+- جاهز للرفع على GitHub بعد تأكيد المستخدم

@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { signToken } from '@/lib/auth';
-import { authenticateUser } from '@/lib/db-operations';
+import { authenticateUser, checkDevice, registerDevice } from '@/lib/db-operations';
 
 /**
- * Simple in-memory rate limiter for login attempts.
+ * In-memory rate limiter for login attempts.
  * Tracks failed attempts per username to prevent brute-force attacks.
  * Resets after 15 minutes of inactivity.
  */
@@ -15,7 +15,6 @@ function isRateLimited(username: string): { limited: boolean; retryAfter?: numbe
   const record = loginAttempts.get(username.toLowerCase());
   if (!record) return { limited: false };
 
-  // Reset if lockout window has passed
   if (Date.now() - record.lastAttempt > LOCKOUT_WINDOW_MS) {
     loginAttempts.delete(username.toLowerCase());
     return { limited: false };
@@ -44,7 +43,7 @@ function clearFailedAttempts(username: string) {
   loginAttempts.delete(username.toLowerCase());
 }
 
-// Clean up stale entries periodically (every 30 minutes)
+// Clean up stale entries periodically
 setInterval(() => {
   const now = Date.now();
   for (const [key, record] of loginAttempts) {
@@ -56,7 +55,7 @@ setInterval(() => {
 
 export async function POST(request: NextRequest) {
   try {
-    const { username, password } = await request.json();
+    const { username, password, deviceFingerprint, deviceName, fullFingerprint } = await request.json();
 
     if (!username || !password) {
       return NextResponse.json(
@@ -87,6 +86,59 @@ export async function POST(request: NextRequest) {
       const user = await authenticateUser(username, password);
       clearFailedAttempts(username);
 
+      // ═══════ Hybrid Device Fingerprint Check ═══════
+      // المدير يتجاوز فحص الجهاز
+      if (user.role !== 'admin' && deviceFingerprint) {
+        const deviceCheck = await checkDevice(user.id, deviceFingerprint);
+
+        if (!deviceCheck.known) {
+          // جهاز جديد — تسجيله بانتظار الموافقة
+          try {
+            await registerDevice(
+              user.id,
+              deviceFingerprint,
+              deviceName || 'Unknown Device',
+              fullFingerprint || deviceFingerprint
+            );
+          } catch (regError: unknown) {
+            const msg = regError instanceof Error ? regError.message : '';
+            if (msg.includes('الحد الأقصى')) {
+              return NextResponse.json(
+                { error: msg, status: 'device_limit_reached' },
+                { status: 403, headers: { 'Cache-Control': 'no-store' } }
+              );
+            }
+          }
+
+          // إرجاع حالة "بانتظار الموافقة" — بدون token
+          return NextResponse.json(
+            {
+              status: 'pending_approval',
+              message: 'جهاز جديد — بانتظار موافقة المدير',
+              deviceName: deviceName || 'Unknown Device',
+              userId: user.id,
+              username: user.username,
+            },
+            { headers: { 'Cache-Control': 'no-store' } }
+          );
+        }
+
+        if (!deviceCheck.approved) {
+          // الجهاز مسجل لكن لم تتم الموافقة بعد
+          return NextResponse.json(
+            {
+              status: 'pending_approval',
+              message: 'جهازك بانتظار موافقة المدير',
+              deviceName: deviceCheck.device?.device_name || 'Unknown Device',
+              userId: user.id,
+              username: user.username,
+            },
+            { headers: { 'Cache-Control': 'no-store' } }
+          );
+        }
+      }
+
+      // ═══════ تسجيل الدخول الناجح ═══════
       const token = await signToken({
         userId: user.id,
         username: user.username,
@@ -100,6 +152,7 @@ export async function POST(request: NextRequest) {
             username: user.username,
             fullName: user.full_name,
             role: user.role,
+            cloudSyncEnabled: user.cloud_sync_enabled,
           },
         },
         { headers: { 'Cache-Control': 'no-store' } }

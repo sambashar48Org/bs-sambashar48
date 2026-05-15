@@ -180,7 +180,82 @@ export async function deleteProject(projectId: string) {
   if (error) throw new Error('فشل حذف المشروع');
 }
 
-// ======== Device Operations ========
+// ======== Device Operations (Hybrid Fingerprint System) ========
+
+/** التحقق من جهاز المستخدم — إرجاع حالة الجهاز */
+export async function checkDevice(userId: string, deviceFingerprint: string) {
+  // البحث عن الجهاز بقاعدة البيانات
+  const { data: existingDevice, error } = await supabase
+    .from('devices')
+    .select('*')
+    .eq('user_id', userId)
+    .eq('device_id', deviceFingerprint)
+    .single();
+
+  if (existingDevice) {
+    // الجهاز معروف — تحديث آخر استخدام
+    await supabase
+      .from('devices')
+      .update({ last_seen_at: new Date().toISOString() })
+      .eq('id', existingDevice.id);
+
+    return {
+      known: true,
+      approved: existingDevice.is_approved && existingDevice.is_active,
+      device: existingDevice,
+    };
+  }
+
+  // جهاز جديد — لا يوجد سجل
+  return { known: false, approved: false, device: null };
+}
+
+/** تسجيل جهاز جديد — بانتظار موافقة المدير */
+export async function registerDevice(
+  userId: string,
+  deviceFingerprint: string,
+  deviceName: string,
+  fullFingerprint: string
+) {
+  // التحقق من عدد الأجهزة المسموحة
+  const { data: user } = await supabase
+    .from('users')
+    .select('max_devices')
+    .eq('id', userId)
+    .single();
+
+  const { data: currentDevices } = await supabase
+    .from('devices')
+    .select('id')
+    .eq('user_id', userId);
+
+  const maxDevices = user?.max_devices || 2;
+  if ((currentDevices?.length || 0) >= maxDevices) {
+    throw new Error(`تم بلوغ الحد الأقصى للأجهزة (${maxDevices}). تواصل مع المدير.`);
+  }
+
+  const { data, error } = await supabase
+    .from('devices')
+    .insert({
+      user_id: userId,
+      device_id: deviceFingerprint,
+      device_fingerprint: fullFingerprint,
+      device_name: deviceName,
+      is_active: false,       // غير مفعل حتى يوافق المدير
+      is_approved: false,      // بانتظار الموافقة
+    })
+    .select()
+    .single();
+
+  if (error) {
+    if (error.code === '23505') {
+      throw new Error('الجهاز مسجل مسبقاً وبانتظار الموافقة');
+    }
+    throw new Error('فشل تسجيل الجهاز');
+  }
+  return data;
+}
+
 export async function getDevicesByUser(userId: string) {
   const { data, error } = await supabase
     .from('devices')
@@ -192,25 +267,29 @@ export async function getDevicesByUser(userId: string) {
   return data || [];
 }
 
-export async function addDevice(userId: string, deviceId: string, deviceName: string) {
-  const { data, error } = await supabase
+/** الموافقة على جهاز من قِبل المدير */
+export async function approveDevice(deviceId: string, adminUserId: string) {
+  const { error } = await supabase
     .from('devices')
-    .insert({
-      user_id: userId,
-      device_id: deviceId,
-      device_name: deviceName,
+    .update({
       is_active: true,
+      is_approved: true,
+      approved_by: adminUserId,
+      approved_at: new Date().toISOString(),
     })
-    .select()
-    .single();
+    .eq('id', deviceId);
 
-  if (error) {
-    if (error.code === '23505') {
-      throw new Error('الجهاز مسجل مسبقاً');
-    }
-    throw new Error('فشل إضافة الجهاز');
-  }
-  return data;
+  if (error) throw new Error('فشل الموافقة على الجهاز');
+}
+
+/** رفض/حظر جهاز */
+export async function rejectDevice(deviceId: string) {
+  const { error } = await supabase
+    .from('devices')
+    .delete()
+    .eq('id', deviceId);
+
+  if (error) throw new Error('فشل رفض الجهاز');
 }
 
 export async function toggleDevice(deviceId: string, isActive: boolean) {
@@ -229,4 +308,16 @@ export async function deleteDevice(deviceId: string) {
     .eq('id', deviceId);
 
   if (error) throw new Error('فشل حذف الجهاز');
+}
+
+/** جلب جميع الأجهزة المعلقة (للمدير) */
+export async function getPendingDevices() {
+  const { data, error } = await supabase
+    .from('devices')
+    .select('*, users(username, full_name)')
+    .eq('is_approved', false)
+    .order('created_at', { ascending: false });
+
+  if (error) throw new Error('فشل جلب الأجهزة المعلقة');
+  return data || [];
 }

@@ -20,11 +20,11 @@ export class DownloadAdapter implements IDownloadAdapter {
 
   // ======== Download Project as .bsproj File ========
   async downloadProject(project: LocalProject): Promise<void> {
-    const serialized = ProjectSerializer.serialize(project);
     const fileName = this.sanitizeFileName(project.name) + '.bsproj';
 
     try {
-      const blob = new Blob([serialized], { type: 'application/json' });
+      // استخدام الضغط الحقيقي (GZIP) عبر serializeToBlob
+      const blob = await ProjectSerializer.serializeToBlob(project);
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
@@ -58,8 +58,8 @@ export class DownloadAdapter implements IDownloadAdapter {
         }
 
         try {
-          const content = await file.text();
-          const project = ProjectSerializer.deserialize(content);
+          // استخدام deserializeFromBlob لدعم الملفات المضغوطة والنصية
+          const project = await ProjectSerializer.deserializeFromBlob(file);
           resolve(project);
         } catch {
           reject(new Error('فشل قراءة الملف. تأكد من أنه ملف .bsproj صالح.'));

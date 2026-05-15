@@ -8,6 +8,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { useAuthStore } from '@/stores';
+import { getHybridDeviceId, clearDeviceFingerprint } from '@/lib/device-fingerprint';
+import PendingApproval from '@/components/shared/PendingApproval';
 
 // Cache-busting version — increment when deploying a new build
 // This forces the browser to bypass any cached Service Worker or stale JS files
@@ -21,6 +23,7 @@ export default function LoginPage() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [pendingApproval, setPendingApproval] = useState<{ deviceName: string; username: string; userId: string } | null>(null);
 
   // ─────────────────────────────────────────────────────
   // AGGRESSIVE CACHE & SERVICE WORKER CLEANUP
@@ -81,6 +84,9 @@ export default function LoginPage() {
       setIsLoading(true);
 
       try {
+        // توليد بصمة الجهاز الهجين
+        const deviceId = await getHybridDeviceId();
+
         // Add cache-busting timestamp to prevent any proxy/SW from serving cached response
         const loginUrl = `/api/auth/login?_t=${Date.now()}`;
         const res = await fetch(loginUrl, {
@@ -90,14 +96,34 @@ export default function LoginPage() {
             'Cache-Control': 'no-cache',
             'Pragma': 'no-cache',
           },
-          credentials: 'include', // Explicitly include cookies
+          credentials: 'include',
           body: JSON.stringify({
             username: username.trim(),
             password,
+            deviceFingerprint: deviceId.fingerprint,
+            deviceName: deviceId.description,
+            fullFingerprint: JSON.stringify(deviceId.components),
           }),
         });
 
         const data = await res.json();
+
+        // حالة بانتظار موافقة المدير
+        if (data.status === 'pending_approval') {
+          setPendingApproval({
+            deviceName: data.deviceName || deviceId.description,
+            username: data.username || username.trim(),
+            userId: data.userId,
+          });
+          setIsLoading(false);
+          return;
+        }
+
+        // حالة بلوغ حد الأجهزة
+        if (data.status === 'device_limit_reached') {
+          setError(data.error || 'تم بلوغ الحد الأقصى للأجهزة');
+          return;
+        }
 
         if (!res.ok) {
           setError(data.error || 'حدث خطأ أثناء تسجيل الدخول');
@@ -125,6 +151,57 @@ export default function LoginPage() {
     },
     [username, password, setAuth, router]
   );
+
+  // فحص حالة الموافقة
+  const handleRefreshApproval = useCallback(async () => {
+    if (!pendingApproval) return;
+    try {
+      const deviceId = await getHybridDeviceId();
+      const res = await fetch(`/api/auth/login?_t=${Date.now()}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          username: pendingApproval.username,
+          password,
+          deviceFingerprint: deviceId.fingerprint,
+          deviceName: deviceId.description,
+          fullFingerprint: JSON.stringify(deviceId.components),
+        }),
+      });
+      const data = await res.json();
+      if (data.user) {
+        setAuth({
+          id: data.user.id,
+          username: data.user.username,
+          fullName: data.user.fullName,
+          role: data.user.role,
+          cloudSyncEnabled: data.user.cloudSyncEnabled,
+        });
+        window.location.href = `/?_v=${BUILD_VERSION}`;
+      }
+    } catch {
+      // صامت — المحاولة التالية بعد 30 ثانية
+    }
+  }, [pendingApproval, password, setAuth]);
+
+  const handleLogout = useCallback(() => {
+    clearDeviceFingerprint();
+    setPendingApproval(null);
+    useAuthStore.getState().clearAuth();
+  }, []);
+
+  // عرض واجهة بانتظار الموافقة
+  if (pendingApproval) {
+    return (
+      <PendingApproval
+        deviceName={pendingApproval.deviceName}
+        username={pendingApproval.username}
+        onLogout={handleLogout}
+        onRefresh={handleRefreshApproval}
+      />
+    );
+  }
 
   return (
     <div
