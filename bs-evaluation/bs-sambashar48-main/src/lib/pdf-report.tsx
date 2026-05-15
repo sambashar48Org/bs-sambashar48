@@ -19,9 +19,10 @@ import {
   Link,
 } from '@react-pdf/renderer';
 import {
-  checkSoilStress, checkColumnStress, checkSlabThickness,
-  checkBeamThickness, checkFlexure, checkShear,
-  compareReinforcement, checkPunchingShear,
+  checkIsolatedFoundation, checkCombinedFoundation, checkMatFoundation, checkContinuousFoundation,
+  checkColumnWallStress,
+  checkSlabThickness, checkBeamThickness, checkFlexure, checkShear,
+  calculateStirrups, compareReinforcement, checkPunchingShear, calculateSlabMomentShear,
 } from './calculations';
 
 // ===================================================================
@@ -55,7 +56,6 @@ export async function loadArabicFont(): Promise<boolean> {
     const res = await fetch('/fonts/Cairo.ttf');
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const buffer = await res.arrayBuffer();
-    // Convert ArrayBuffer to base64 data URI for @react-pdf/renderer
     const bytes = new Uint8Array(buffer);
     let binary = '';
     for (let i = 0; i < bytes.length; i++) {
@@ -139,17 +139,37 @@ const FOUNDATION_ENTRY_LABELS: Record<string, string> = {
   width: 'العرض (سم)',
   height: 'الارتفاع (سم)',
   totalLoad: 'الحمولة الاستثمارية الكلية (طن)',
+  P1: 'حمل العمود الخارجي P1 (طن)',
+  P2: 'حمل العمود الداخلي P2 (طن)',
+  S: 'المسافة بين العمودين (سم)',
+  L_out: 'بروز خارجي (سم)',
+  fc: "المقاومة الاسطوانية f'c (كغ/سم²)",
+  columnLoad: 'حمل العمود (طن)',
+  columnWidth: 'عرض العمود (سم)',
+  columnDepth: 'عمق العمود (سم)',
+  columnType: 'موقع العمود',
+  q: 'الحمولة الخطية (طن/م)',
   notes: 'ملاحظات',
+};
+
+const FOUNDATION_TYPE_LABELS: Record<string, string> = {
+  'منفردة': 'أساس منفرد',
+  'مشتركة': 'أساس مشترك',
+  'حصيرة': 'حصيرة (raft)',
+  'مستمرة': 'أساس مستمر',
 };
 
 const COLUMN_ENTRY_LABELS: Record<string, string> = {
   elementType: 'نوع العنصر',
-  columnType: 'نوع العمود',
+  columnType: 'موقع العمود',
   floor: 'الطابق',
   name: 'اسم العنصر',
   sectionWidth: 'عرض المقطع (سم)',
   sectionDepth: 'طول المقطع (سم)',
-  totalLoad: 'الحمولة الاستثمارية الكلية (طن)',
+  totalLoad: 'الحمولة الاستثمارية (طن)',
+  n: 'نسبة النمطية',
+  As: 'مساحة التسليح (سم²)',
+  H_clear: 'الارتفاع الصافي (سم)',
   notes: 'ملاحظات',
 };
 
@@ -163,7 +183,15 @@ const SLAB_ENTRY_LABELS: Record<string, string> = {
   hActual: 'السماكة المنفذة (سم)',
   coverThickness: 'سمك الغطاء (سم)',
   ribHeight: 'ارتفاع العصب (سم)',
+  hasDropPanels: 'تيجان',
   load: 'الحمولة (طن/م²)',
+  rebarCount: 'عدد التسليح',
+  rebarDiameter: 'قطر التسليح (مم)',
+  cover: 'الغطاء (سم)',
+  punchingColumnWidth: 'عرض العمود (سم)',
+  punchingColumnDepth: 'عمق العمود (سم)',
+  punchingReaction: 'رد الفعل (طن)',
+  punchingColumnType: 'موقع العمود',
   notes: 'ملاحظات',
 };
 
@@ -182,6 +210,7 @@ const BEAM_ENTRY_LABELS: Record<string, string> = {
   shear: 'القص (طن)',
   stirrupDiameter: 'قطر الأطواق (مم)',
   stirrupLegs: 'عدد فروع الأطواق',
+  Fs: 'إجهاد الحديد المسموح للأطواق (كغ/سم²)',
   notes: 'ملاحظات',
 };
 
@@ -340,12 +369,33 @@ function shouldSkip(key: string): boolean {
 }
 
 // ===================================================================
-// HELPER: rebarArea
+// HELPERS
 // ===================================================================
 
 function rebarArea(count: number, diameterMm: number): number {
   return count * (Math.PI / 4) * Math.pow(diameterMm / 10, 2);
 }
+
+function getEffectiveH(slab: Record<string, unknown>): number {
+  const subType = String(slab.slabSubType || '');
+  if (subType === 'oneWayRibbed' || subType === 'twoWayRibbed') {
+    return (parseFloat(String(slab.coverThickness || 0)) || 0) + (parseFloat(String(slab.ribHeight || 0)) || 0);
+  }
+  return parseFloat(String(slab.hActual || 0)) || 0;
+}
+
+function getSlabSupportCondition(slab: Record<string, unknown>): string {
+  if (String(slab.slabSubType || '') === 'flatSlab') {
+    return String(slab.hasDropPanels || 'بدون تيجان');
+  }
+  return String(slab.supportCondition || '');
+}
+
+const COLUMN_TYPE_MAP: Record<string, 'center' | 'edge' | 'corner'> = {
+  'وسطي': 'center',
+  'طرفي': 'edge',
+  'ركني': 'corner',
+};
 
 // ===================================================================
 // COLORS
@@ -386,518 +436,89 @@ const C = {
 // ===================================================================
 
 const S = StyleSheet.create({
-  // ---- Page ----
-  page: {
-    fontFamily: 'Cairo',
-    fontSize: 9.5,
-    color: C.text,
-    size: 'A4',
-  },
-
-  // ---- Cover Page ----
-  coverPage: {
-    fontFamily: 'Cairo',
-    fontSize: 9.5,
-    color: C.white,
-    size: 'A4',
-    backgroundColor: C.primaryDark,
-  },
-  coverContent: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: 60,
-    paddingVertical: 80,
-  },
-  coverLogo: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: C.white,
-    marginBottom: 30,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  coverLogoText: {
-    fontSize: 28,
-    fontWeight: 700,
-    color: C.primaryDark,
-    textAlign: 'center',
-  },
-  coverTitle: {
-    fontSize: 22,
-    fontWeight: 700,
-    color: C.white,
-    textAlign: 'center',
-    marginBottom: 8,
-  },
-  coverSubtitle: {
-    fontSize: 14,
-    color: C.primaryLight,
-    textAlign: 'center',
-    marginBottom: 6,
-  },
-  coverCode: {
-    fontSize: 11,
-    color: '#a7f3d0',
-    textAlign: 'center',
-    marginBottom: 30,
-  },
-  coverDivider: {
-    width: 120,
-    height: 3,
-    backgroundColor: C.safe,
-    marginBottom: 30,
-  },
-  coverCompany: {
-    fontSize: 16,
-    fontWeight: 700,
-    color: C.white,
-    textAlign: 'center',
-    marginBottom: 15,
-  },
-  coverDate: {
-    fontSize: 11,
-    color: '#a7f3d0',
-    textAlign: 'center',
-    marginTop: 30,
-  },
-  coverCopyright: {
-    fontSize: 8,
-    color: '#6ee7b7',
-    textAlign: 'center',
-    marginTop: 15,
-  },
-
-  // ---- TOC Page ----
-  tocPage: {
-    fontFamily: 'Cairo',
-    fontSize: 9.5,
-    color: C.text,
-    size: 'A4',
-  },
-  tocContent: {
-    paddingTop: 100,
-    paddingBottom: 65,
-    paddingHorizontal: 50,
-  },
-  tocTitle: {
-    fontSize: 16,
-    fontWeight: 700,
-    color: C.primary,
-    textAlign: 'center',
-    marginBottom: 25,
-  },
-  tocItem: {
-    flexDirection: 'row-reverse',
-    alignItems: 'center',
-    paddingVertical: 7,
-    paddingHorizontal: 10,
-    borderBottomWidth: 0.5,
-    borderBottomColor: C.grayBorder,
-  },
-  tocItemAlt: {
-    flexDirection: 'row-reverse',
-    alignItems: 'center',
-    paddingVertical: 7,
-    paddingHorizontal: 10,
-    borderBottomWidth: 0.5,
-    borderBottomColor: C.grayBorder,
-    backgroundColor: C.grayBg,
-  },
-  tocNum: {
-    width: 24,
-    fontSize: 9,
-    fontWeight: 700,
-    color: C.primary,
-    textAlign: 'center',
-  },
-  tocLabel: {
-    flex: 1,
-    fontSize: 10,
-    color: C.text,
-    textAlign: 'right',
-    marginRight: 8,
-  },
-
-  // ---- Header (repeats every page) ----
-  header: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    paddingTop: 20,
-    paddingBottom: 10,
-    paddingHorizontal: 50,
-    borderBottomWidth: 3,
-    borderBottomColor: C.primaryDark,
-    backgroundColor: C.white,
-  },
-  headerCompany: {
-    fontSize: 12,
-    fontWeight: 700,
-    color: C.primary,
-    textAlign: 'center',
-    marginBottom: 2,
-  },
-  headerTitle: {
-    fontSize: 11,
-    fontWeight: 700,
-    color: C.text,
-    textAlign: 'center',
-    marginBottom: 1,
-  },
-  headerSubtitle: {
-    fontSize: 7.5,
-    color: C.textMuted,
-    textAlign: 'center',
-  },
-  headerDate: {
-    fontSize: 7,
-    color: C.textLight,
-    textAlign: 'center',
-    marginTop: 2,
-  },
-  headerCustomText: {
-    fontSize: 8,
-    color: C.textMuted,
-    textAlign: 'center',
-    marginTop: 2,
-  },
-
-  // ---- Footer (repeats every page) ----
-  footer: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    paddingTop: 8,
-    paddingBottom: 18,
-    paddingHorizontal: 50,
-    borderTopWidth: 2,
-    borderTopColor: C.primary,
-    backgroundColor: C.white,
-  },
-  footerText: {
-    fontSize: 7,
-    color: C.textMuted,
-    textAlign: 'center',
-  },
-  footerEndMark: {
-    fontSize: 6.5,
-    color: C.textLight,
-    textAlign: 'center',
-    marginTop: 3,
-  },
-  footerPage: {
-    position: 'absolute',
-    bottom: 18,
-    left: 50,
-    fontSize: 7.5,
-    color: C.textLight,
-  },
-
-  // ---- Content Area ----
-  content: {
-    paddingTop: 80,
-    paddingBottom: 60,
-    paddingHorizontal: 50,
-  },
-
-  // ---- Section ----
-  section: {
-    marginBottom: 18,
-  },
-  sectionHeader: {
-    flexDirection: 'row-reverse',
-    alignItems: 'center',
-    gap: 8,
-    marginBottom: 8,
-    paddingBottom: 5,
-    borderBottomWidth: 2,
-    borderBottomColor: C.primary,
-  },
-  sectionNum: {
-    width: 22,
-    height: 22,
-    borderRadius: 11,
-    backgroundColor: C.primary,
-    color: C.white,
-    textAlign: 'center',
-    fontSize: 9,
-    fontWeight: 700,
-    lineHeight: 22,
-  },
-  sectionTitle: {
-    fontSize: 11,
-    fontWeight: 700,
-    color: '#1f2937',
-  },
-
-  // ---- Sub-section ----
-  subHeader: {
-    flexDirection: 'row-reverse',
-    alignItems: 'center',
-    gap: 6,
-    marginTop: 10,
-    marginBottom: 6,
-  },
-  subNum: {
-    width: 18,
-    height: 18,
-    borderRadius: 9,
-    backgroundColor: C.primaryLight,
-    color: C.primary,
-    textAlign: 'center',
-    fontSize: 7.5,
-    fontWeight: 700,
-    lineHeight: 18,
-  },
-  subTitle: {
-    fontSize: 9.5,
-    fontWeight: 700,
-    color: '#374151',
-  },
-
-  // ---- Table ----
-  table: {
-    borderWidth: 1,
-    borderColor: C.tableBorder,
-    borderRadius: 2,
-    marginBottom: 8,
-  },
-  tableHead: {
-    backgroundColor: C.headerBg,
-    flexDirection: 'row-reverse',
-  },
-  th: {
-    paddingVertical: 5,
-    paddingHorizontal: 6,
-    fontSize: 8.5,
-    fontWeight: 700,
-    color: C.white,
-    borderLeftWidth: 1,
-    borderLeftColor: C.primaryDark,
-    textAlign: 'right',
-  },
-  tr: {
-    flexDirection: 'row-reverse',
-    borderBottomWidth: 0.5,
-    borderBottomColor: C.grayBorder,
-  },
-  trAlt: {
-    flexDirection: 'row-reverse',
-    borderBottomWidth: 0.5,
-    borderBottomColor: C.grayBorder,
-    backgroundColor: C.grayBg,
-  },
-  td: {
-    paddingVertical: 4,
-    paddingHorizontal: 6,
-    fontSize: 8.5,
-    borderLeftWidth: 0.5,
-    borderLeftColor: C.grayBorder,
-    textAlign: 'right',
-  },
+  page: { fontFamily: 'Cairo', fontSize: 9.5, color: C.text, size: 'A4' },
+  coverPage: { fontFamily: 'Cairo', fontSize: 9.5, color: C.white, size: 'A4', backgroundColor: C.primaryDark },
+  coverContent: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 60, paddingVertical: 80 },
+  coverLogo: { width: 80, height: 80, borderRadius: 40, backgroundColor: C.white, marginBottom: 30, justifyContent: 'center', alignItems: 'center' },
+  coverLogoText: { fontSize: 28, fontWeight: 700, color: C.primaryDark, textAlign: 'center' },
+  coverTitle: { fontSize: 22, fontWeight: 700, color: C.white, textAlign: 'center', marginBottom: 8 },
+  coverSubtitle: { fontSize: 14, color: C.primaryLight, textAlign: 'center', marginBottom: 6 },
+  coverCode: { fontSize: 11, color: '#a7f3d0', textAlign: 'center', marginBottom: 30 },
+  coverDivider: { width: 120, height: 3, backgroundColor: C.safe, marginBottom: 30 },
+  coverCompany: { fontSize: 16, fontWeight: 700, color: C.white, textAlign: 'center', marginBottom: 15 },
+  coverDate: { fontSize: 11, color: '#a7f3d0', textAlign: 'center', marginTop: 30 },
+  coverCopyright: { fontSize: 8, color: '#6ee7b7', textAlign: 'center', marginTop: 15 },
+  tocPage: { fontFamily: 'Cairo', fontSize: 9.5, color: C.text, size: 'A4' },
+  tocContent: { paddingTop: 100, paddingBottom: 65, paddingHorizontal: 50 },
+  tocTitle: { fontSize: 16, fontWeight: 700, color: C.primary, textAlign: 'center', marginBottom: 25 },
+  tocItem: { flexDirection: 'row-reverse', alignItems: 'center', paddingVertical: 7, paddingHorizontal: 10, borderBottomWidth: 0.5, borderBottomColor: C.grayBorder },
+  tocItemAlt: { flexDirection: 'row-reverse', alignItems: 'center', paddingVertical: 7, paddingHorizontal: 10, borderBottomWidth: 0.5, borderBottomColor: C.grayBorder, backgroundColor: C.grayBg },
+  tocNum: { width: 24, fontSize: 9, fontWeight: 700, color: C.primary, textAlign: 'center' },
+  tocLabel: { flex: 1, fontSize: 10, color: C.text, textAlign: 'right', marginRight: 8 },
+  header: { position: 'absolute', top: 0, left: 0, right: 0, paddingTop: 20, paddingBottom: 10, paddingHorizontal: 50, borderBottomWidth: 3, borderBottomColor: C.primaryDark, backgroundColor: C.white },
+  headerCompany: { fontSize: 12, fontWeight: 700, color: C.primary, textAlign: 'center', marginBottom: 2 },
+  headerTitle: { fontSize: 11, fontWeight: 700, color: C.text, textAlign: 'center', marginBottom: 1 },
+  headerSubtitle: { fontSize: 7.5, color: C.textMuted, textAlign: 'center' },
+  headerDate: { fontSize: 7, color: C.textLight, textAlign: 'center', marginTop: 2 },
+  headerCustomText: { fontSize: 8, color: C.textMuted, textAlign: 'center', marginTop: 2 },
+  footer: { position: 'absolute', bottom: 0, left: 0, right: 0, paddingTop: 8, paddingBottom: 18, paddingHorizontal: 50, borderTopWidth: 2, borderTopColor: C.primary, backgroundColor: C.white },
+  footerText: { fontSize: 7, color: C.textMuted, textAlign: 'center' },
+  footerEndMark: { fontSize: 6.5, color: C.textLight, textAlign: 'center', marginTop: 3 },
+  footerPage: { position: 'absolute', bottom: 18, left: 50, fontSize: 7.5, color: C.textLight },
+  content: { paddingTop: 80, paddingBottom: 60, paddingHorizontal: 50 },
+  section: { marginBottom: 18 },
+  sectionHeader: { flexDirection: 'row-reverse', alignItems: 'center', gap: 8, marginBottom: 8, paddingBottom: 5, borderBottomWidth: 2, borderBottomColor: C.primary },
+  sectionNum: { width: 22, height: 22, borderRadius: 11, backgroundColor: C.primary, color: C.white, textAlign: 'center', fontSize: 9, fontWeight: 700, lineHeight: 22 },
+  sectionTitle: { fontSize: 11, fontWeight: 700, color: '#1f2937' },
+  subHeader: { flexDirection: 'row-reverse', alignItems: 'center', gap: 6, marginTop: 10, marginBottom: 6 },
+  subNum: { width: 18, height: 18, borderRadius: 9, backgroundColor: C.primaryLight, color: C.primary, textAlign: 'center', fontSize: 7.5, fontWeight: 700, lineHeight: 18 },
+  subTitle: { fontSize: 9.5, fontWeight: 700, color: '#374151' },
+  table: { borderWidth: 1, borderColor: C.tableBorder, borderRadius: 2, marginBottom: 8 },
+  tableHead: { backgroundColor: C.headerBg, flexDirection: 'row-reverse' },
+  th: { paddingVertical: 5, paddingHorizontal: 6, fontSize: 8.5, fontWeight: 700, color: C.white, borderLeftWidth: 1, borderLeftColor: C.primaryDark, textAlign: 'right' },
+  tr: { flexDirection: 'row-reverse', borderBottomWidth: 0.5, borderBottomColor: C.grayBorder },
+  trAlt: { flexDirection: 'row-reverse', borderBottomWidth: 0.5, borderBottomColor: C.grayBorder, backgroundColor: C.grayBg },
+  td: { paddingVertical: 4, paddingHorizontal: 6, fontSize: 8.5, borderLeftWidth: 0.5, borderLeftColor: C.grayBorder, textAlign: 'right' },
   tdLabel: { flex: 4, color: '#374151', fontWeight: 500 },
   tdValue: { flex: 5, color: C.text },
-
-  // ---- Entry Card ----
-  card: {
-    borderWidth: 1,
-    borderColor: C.grayBorder,
-    borderRadius: 3,
-    marginBottom: 8,
-    overflow: 'hidden',
-  },
-  cardHead: {
-    backgroundColor: '#f3f4f6',
-    paddingVertical: 5,
-    paddingHorizontal: 8,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    borderBottomWidth: 0.5,
-    borderBottomColor: C.grayBorder,
-  },
-  cardTitle: {
-    fontSize: 8.5,
-    fontWeight: 700,
-    color: '#374151',
-    textAlign: 'right',
-  },
-
-  // ---- Safety Badge ----
-  safeBadge: {
-    paddingHorizontal: 6,
-    paddingVertical: 1.5,
-    borderRadius: 2,
-    backgroundColor: C.safeBg,
-    borderWidth: 0.5,
-    borderColor: C.safeBorder,
-  },
-  safeBadgeText: {
-    fontSize: 6.5,
-    fontWeight: 700,
-    color: C.safe,
-  },
-  unsafeBadge: {
-    paddingHorizontal: 6,
-    paddingVertical: 1.5,
-    borderRadius: 2,
-    backgroundColor: C.unsafeBg,
-    borderWidth: 0.5,
-    borderColor: C.unsafeBorder,
-  },
-  unsafeBadgeText: {
-    fontSize: 6.5,
-    fontWeight: 700,
-    color: C.unsafe,
-  },
-
-  // ---- Info Box ----
-  infoBox: {
-    padding: 8,
-    borderRadius: 3,
-    backgroundColor: C.primaryBg,
-    borderWidth: 0.5,
-    borderColor: '#a7f3d0',
-    marginBottom: 10,
-  },
+  card: { borderWidth: 1, borderColor: C.grayBorder, borderRadius: 3, marginBottom: 8, overflow: 'hidden' },
+  cardHead: { backgroundColor: '#f3f4f6', paddingVertical: 5, paddingHorizontal: 8, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', borderBottomWidth: 0.5, borderBottomColor: C.grayBorder },
+  cardTitle: { fontSize: 8.5, fontWeight: 700, color: '#374151', textAlign: 'right' },
+  safeBadge: { paddingHorizontal: 6, paddingVertical: 1.5, borderRadius: 2, backgroundColor: C.safeBg, borderWidth: 0.5, borderColor: C.safeBorder },
+  safeBadgeText: { fontSize: 6.5, fontWeight: 700, color: C.safe },
+  unsafeBadge: { paddingHorizontal: 6, paddingVertical: 1.5, borderRadius: 2, backgroundColor: C.unsafeBg, borderWidth: 0.5, borderColor: C.unsafeBorder },
+  unsafeBadgeText: { fontSize: 6.5, fontWeight: 700, color: C.unsafe },
+  infoBox: { padding: 8, borderRadius: 3, backgroundColor: C.primaryBg, borderWidth: 0.5, borderColor: '#a7f3d0', marginBottom: 10 },
   infoBoxLabel: { fontSize: 9, color: C.primary, fontWeight: 700, textAlign: 'right' },
   infoBoxValue: { fontSize: 9, color: C.primary, fontWeight: 700, textAlign: 'left' },
-
-  // ---- Results Table ----
-  resultsHead: {
-    flexDirection: 'row-reverse',
-    paddingVertical: 4,
-    paddingHorizontal: 6,
-    fontSize: 8.5,
-    fontWeight: 700,
-    textAlign: 'right',
-  },
+  resultsHead: { flexDirection: 'row-reverse', paddingVertical: 4, paddingHorizontal: 6, fontSize: 8.5, fontWeight: 700, textAlign: 'right' },
   resultsHeadSafe: { backgroundColor: C.safeBg, color: C.safe },
   resultsHeadUnsafe: { backgroundColor: C.unsafeBg, color: C.unsafe },
-
-  // ---- Separator ----
-  sep: {
-    borderBottomWidth: 0.5,
-    borderBottomColor: '#d1d5db',
-    borderStyle: 'dashed',
-    marginVertical: 12,
-  },
-
-  // ---- No Data ----
-  noData: {
-    fontSize: 9,
-    color: C.textMuted,
-    textAlign: 'center',
-    paddingVertical: 15,
-  },
-
-  // ---- Flex row helper ----
+  sep: { borderBottomWidth: 0.5, borderBottomColor: '#d1d5db', borderStyle: 'dashed', marginVertical: 12 },
+  noData: { fontSize: 9, color: C.textMuted, textAlign: 'center', paddingVertical: 15 },
   row: { flexDirection: 'row-reverse', alignItems: 'center' },
   rowCenter: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center' },
-
-  // ---- Text block for long text ----
-  textBlock: {
-    fontSize: 9,
-    color: C.text,
-    textAlign: 'right',
-    lineHeight: 1.5,
-    paddingVertical: 4,
-    paddingHorizontal: 8,
-    marginBottom: 6,
-  },
-
-  // ---- Colored info boxes for electrical/plumbing ----
-  blueInfoBox: {
-    padding: 8,
-    borderRadius: 3,
-    backgroundColor: C.blueBg,
-    borderWidth: 0.5,
-    borderColor: C.blueBorder,
-    marginBottom: 8,
-  },
+  textBlock: { fontSize: 9, color: C.text, textAlign: 'right', lineHeight: 1.5, paddingVertical: 4, paddingHorizontal: 8, marginBottom: 6 },
+  blueInfoBox: { padding: 8, borderRadius: 3, backgroundColor: C.blueBg, borderWidth: 0.5, borderColor: C.blueBorder, marginBottom: 8 },
   blueInfoLabel: { fontSize: 9, color: C.blue, fontWeight: 700, textAlign: 'right' },
   blueInfoValue: { fontSize: 9, color: C.blue, textAlign: 'right', marginTop: 2 },
-
-  purpleInfoBox: {
-    padding: 8,
-    borderRadius: 3,
-    backgroundColor: C.purpleBg,
-    borderWidth: 0.5,
-    borderColor: C.purpleBorder,
-    marginBottom: 8,
-  },
+  purpleInfoBox: { padding: 8, borderRadius: 3, backgroundColor: C.purpleBg, borderWidth: 0.5, borderColor: C.purpleBorder, marginBottom: 8 },
   purpleInfoLabel: { fontSize: 9, color: C.purple, fontWeight: 700, textAlign: 'right' },
   purpleInfoValue: { fontSize: 9, color: C.purple, textAlign: 'right', marginTop: 2 },
-
-  // ---- Evaluation badge ----
-  evalBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 3,
-    marginBottom: 8,
-  },
-  evalBadgeText: {
-    fontSize: 9,
-    fontWeight: 700,
-    textAlign: 'center',
-  },
-
-  // ---- Signature row ----
-  sigRow: {
-    flexDirection: 'row-reverse',
-    borderBottomWidth: 0.5,
-    borderBottomColor: C.grayBorder,
-    paddingVertical: 4,
-  },
-  sigRowAlt: {
-    flexDirection: 'row-reverse',
-    borderBottomWidth: 0.5,
-    borderBottomColor: C.grayBorder,
-    paddingVertical: 4,
-    backgroundColor: C.grayBg,
-  },
-  sigCell: {
-    flex: 1,
-    fontSize: 8,
-    paddingVertical: 3,
-    paddingHorizontal: 4,
-    textAlign: 'right',
-    borderLeftWidth: 0.5,
-    borderLeftColor: C.grayBorder,
-  },
-  sigHeader: {
-    flex: 1,
-    fontSize: 8,
-    fontWeight: 700,
-    paddingVertical: 4,
-    paddingHorizontal: 4,
-    textAlign: 'center',
-    color: C.white,
-    borderLeftWidth: 0.5,
-    borderLeftColor: C.primaryDark,
-  },
-  sigTable: {
-    borderWidth: 1,
-    borderColor: C.tableBorder,
-    borderRadius: 2,
-    marginBottom: 8,
-    overflow: 'hidden',
-  },
-  sigTableHead: {
-    backgroundColor: C.headerBg,
-    flexDirection: 'row-reverse',
-  },
+  evalBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 3, marginBottom: 8 },
+  evalBadgeText: { fontSize: 9, fontWeight: 700, textAlign: 'center' },
+  sigRow: { flexDirection: 'row-reverse', borderBottomWidth: 0.5, borderBottomColor: C.grayBorder, paddingVertical: 4 },
+  sigRowAlt: { flexDirection: 'row-reverse', borderBottomWidth: 0.5, borderBottomColor: C.grayBorder, paddingVertical: 4, backgroundColor: C.grayBg },
+  sigCell: { flex: 1, fontSize: 8, paddingVertical: 3, paddingHorizontal: 4, textAlign: 'right', borderLeftWidth: 0.5, borderLeftColor: C.grayBorder },
+  sigHeader: { flex: 1, fontSize: 8, fontWeight: 700, paddingVertical: 4, paddingHorizontal: 4, textAlign: 'center', color: C.white, borderLeftWidth: 0.5, borderLeftColor: C.primaryDark },
+  sigTable: { borderWidth: 1, borderColor: C.tableBorder, borderRadius: 2, marginBottom: 8, overflow: 'hidden' },
+  sigTableHead: { backgroundColor: C.headerBg, flexDirection: 'row-reverse' },
 });
 
 // ===================================================================
 // PDF HELPER COMPONENTS
 // ===================================================================
 
-/** Safety badge */
 function SafeBadge({ safe }: { safe: boolean }) {
   return (
     <View style={safe ? S.safeBadge : S.unsafeBadge} wrap={false}>
@@ -908,7 +529,6 @@ function SafeBadge({ safe }: { safe: boolean }) {
   );
 }
 
-/** Table header row */
 function ThRow() {
   return (
     <View style={S.tableHead}>
@@ -918,7 +538,6 @@ function ThRow() {
   );
 }
 
-/** Key-Value row */
 function KVRow({ label, value, alt }: {
   label: string;
   value: string | number | boolean | null | undefined;
@@ -934,16 +553,7 @@ function KVRow({ label, value, alt }: {
   );
 }
 
-/** Simple KV Table from a record */
-function KVTable({
-  data,
-  labels,
-  showHeader = true,
-}: {
-  data: Record<string, unknown>;
-  labels?: Record<string, string>;
-  showHeader?: boolean;
-}) {
+function KVTable({ data, labels, showHeader = true }: { data: Record<string, unknown>; labels?: Record<string, string>; showHeader?: boolean }) {
   const getLabel = (k: string) => labels?.[k] || guessLabel(k);
   const entries = Object.entries(data).filter(([k]) => !shouldSkip(k));
   if (entries.length === 0) return <Text style={S.noData}>لا توجد بيانات متاحة</Text>;
@@ -957,40 +567,25 @@ function KVTable({
   );
 }
 
-/** Section header with number */
 function SectionHeader({ number, title }: { number: number; title: string }) {
   return (
     <View style={S.sectionHeader} wrap={false}>
-      <View style={S.sectionNum}>
-        <Text style={S.sectionNum}>{number}</Text>
-      </View>
+      <View style={S.sectionNum}><Text style={S.sectionNum}>{number}</Text></View>
       <Text style={S.sectionTitle}>{title}</Text>
     </View>
   );
 }
 
-/** Sub-section header */
 function SubHeader({ number, title }: { number: string; title: string }) {
   return (
     <View style={S.subHeader} wrap={false}>
-      <View style={S.subNum}>
-        <Text style={S.subNum}>{number}</Text>
-      </View>
+      <View style={S.subNum}><Text style={S.subNum}>{number}</Text></View>
       <Text style={S.subTitle}>{title}</Text>
     </View>
   );
 }
 
-/** Entry card wrapper */
-function EntryCard({
-  title,
-  safe,
-  children,
-}: {
-  title: string;
-  safe?: boolean;
-  children: React.ReactNode;
-}) {
+function EntryCard({ title, safe, children }: { title: string; safe?: boolean; children: React.ReactNode }) {
   return (
     <View style={S.card} wrap={false}>
       <View style={S.cardHead}>
@@ -1005,16 +600,7 @@ function EntryCard({
   );
 }
 
-/** Results table within an entry */
-function ResultsTable({
-  title,
-  safe,
-  rows,
-}: {
-  title: string;
-  safe: boolean;
-  rows: { label: string; value: string }[];
-}) {
+function ResultsTable({ title, safe, rows }: { title: string; safe: boolean; rows: { label: string; value: string }[] }) {
   return (
     <View style={[S.table, { marginTop: 0 }]} wrap={false}>
       <View style={[S.resultsHead, safe ? S.resultsHeadSafe : S.resultsHeadUnsafe]}>
@@ -1030,12 +616,8 @@ function ResultsTable({
   );
 }
 
-/** Separator */
-function Sep() {
-  return <View style={S.sep} />;
-}
+function Sep() { return <View style={S.sep} />; }
 
-/** Text block for long text content */
 function TextBlock({ children }: { children: string }) {
   if (!children) return null;
   return <Text style={S.textBlock}>{children}</Text>;
@@ -1047,20 +629,13 @@ function TextBlock({ children }: { children: string }) {
 
 /** 1. Building Data */
 function RenderBuildingData({ data }: { data: Record<string, unknown> }) {
-  const entries = Object.entries(data).filter(
-    ([k]) => !shouldSkip(k) && BUILDING_LABELS[k],
-  );
+  const entries = Object.entries(data).filter(([k]) => !shouldSkip(k) && BUILDING_LABELS[k]);
   if (entries.length === 0) return <Text style={S.noData}>لا توجد بيانات متاحة</Text>;
   return (
     <View style={S.table}>
       <ThRow />
       {entries.map(([k, v], i) => (
-        <KVRow
-          key={k}
-          label={BUILDING_LABELS[k] || guessLabel(k)}
-          value={v as string | number}
-          alt={i % 2 === 1}
-        />
+        <KVRow key={k} label={BUILDING_LABELS[k] || guessLabel(k)} value={v as string | number} alt={i % 2 === 1} />
       ))}
     </View>
   );
@@ -1068,11 +643,8 @@ function RenderBuildingData({ data }: { data: Record<string, unknown> }) {
 
 /** 2. Architectural Report */
 function RenderArchitecturalReport({ data }: { data: Record<string, unknown> }) {
-  const topEntries = Object.entries(data).filter(
-    ([k]) => !shouldSkip(k) && k !== 'floors',
-  );
+  const topEntries = Object.entries(data).filter(([k]) => !shouldSkip(k) && k !== 'floors');
   const floors = Array.isArray(data.floors) ? data.floors as Record<string, unknown>[] : [];
-
   return (
     <View>
       {topEntries.length > 0 && (
@@ -1088,11 +660,9 @@ function RenderArchitecturalReport({ data }: { data: Record<string, unknown> }) 
           <SubHeader number="2.1" title={`تفاصيل الطوابق (${floors.length} طابق)`} />
           {floors.map((floor, idx) => (
             <EntryCard key={idx} title={`الطابق ${String(floor.floorNumber || idx + 1)}`}>
-              {Object.entries(floor)
-                .filter(([k]) => !shouldSkip(k))
-                .map(([k, v], i) => (
-                  <KVRow key={k} label={ARCHITECTURAL_LABELS[k] || guessLabel(k)} value={v as string | number} alt={i % 2 === 1} />
-                ))}
+              {Object.entries(floor).filter(([k]) => !shouldSkip(k)).map(([k, v], i) => (
+                <KVRow key={k} label={ARCHITECTURAL_LABELS[k] || guessLabel(k)} value={v as string | number} alt={i % 2 === 1} />
+              ))}
             </EntryCard>
           ))}
         </View>
@@ -1102,36 +672,21 @@ function RenderArchitecturalReport({ data }: { data: Record<string, unknown> }) 
 }
 
 /** 3. Structural Report */
-function RenderStructuralReport({
-  data,
-  projectData,
-}: {
-  data: Record<string, unknown>;
-  projectData: Record<string, unknown>;
-}) {
-  const mainEntries = Object.entries(data).filter(
-    ([k]) => STRUCTURAL_LABELS[k] && !shouldSkip(k),
-  );
+function RenderStructuralReport({ data, projectData }: { data: Record<string, unknown>; projectData: Record<string, unknown> }) {
+  const mainEntries = Object.entries(data).filter(([k]) => STRUCTURAL_LABELS[k] && !shouldSkip(k));
   const hammer = data.hammerTest as Record<string, unknown> | undefined;
   const soil = data.soilReport as Record<string, unknown> | undefined;
   const cracks = Array.isArray(data.crackJustifications) ? data.crackJustifications as Record<string, unknown>[] : [];
-
   return (
     <View>
       {mainEntries.length > 0 && (
         <View style={S.table}>
           <ThRow />
           {mainEntries.map(([k, v], i) => (
-            <KVRow
-              key={k}
-              label={STRUCTURAL_LABELS[k] || guessLabel(k)}
-              value={v as string | number}
-              alt={i % 2 === 1}
-            />
+            <KVRow key={k} label={STRUCTURAL_LABELS[k] || guessLabel(k)} value={v as string | number} alt={i % 2 === 1} />
           ))}
         </View>
       )}
-
       {hammer && typeof hammer === 'object' && Object.keys(hammer).length > 0 && (
         <View>
           <SubHeader number="3.1" title="نتائج تجربة المطرقة" />
@@ -1140,20 +695,12 @@ function RenderStructuralReport({
               <Text style={[S.th, { flex: 4 }]}>البند</Text>
               <Text style={[S.th, { flex: 5 }]}>البيان</Text>
             </View>
-            {Object.entries(hammer)
-              .filter(([k]) => !shouldSkip(k))
-              .map(([k, v], i) => (
-                <KVRow
-                  key={k}
-                  label={HAMMER_LABELS[k] || guessLabel(k)}
-                  value={v as string | number}
-                  alt={i % 2 === 1}
-                />
-              ))}
+            {Object.entries(hammer).filter(([k]) => !shouldSkip(k)).map(([k, v], i) => (
+              <KVRow key={k} label={HAMMER_LABELS[k] || guessLabel(k)} value={v as string | number} alt={i % 2 === 1} />
+            ))}
           </View>
         </View>
       )}
-
       {soil && typeof soil === 'object' && Object.keys(soil).length > 0 && (
         <View>
           <SubHeader number="3.2" title="تقرير ميكانيك التربة" />
@@ -1162,20 +709,12 @@ function RenderStructuralReport({
               <Text style={[S.th, { flex: 4 }]}>البند</Text>
               <Text style={[S.th, { flex: 5 }]}>البيان</Text>
             </View>
-            {Object.entries(soil)
-              .filter(([k]) => !shouldSkip(k) && SOIL_LABELS[k])
-              .map(([k, v], i) => (
-                <KVRow
-                  key={k}
-                  label={SOIL_LABELS[k] || guessLabel(k)}
-                  value={v as string | number}
-                  alt={i % 2 === 1}
-                />
-              ))}
+            {Object.entries(soil).filter(([k]) => !shouldSkip(k) && SOIL_LABELS[k]).map(([k, v], i) => (
+              <KVRow key={k} label={SOIL_LABELS[k] || guessLabel(k)} value={v as string | number} alt={i % 2 === 1} />
+            ))}
           </View>
         </View>
       )}
-
       {cracks.length > 0 && (
         <View>
           <SubHeader number="3.3" title={`تشرخات إنشائية (${cracks.length} شق)`} />
@@ -1199,16 +738,12 @@ function RenderStructuralReport({
   );
 }
 
-/** 4. Foundations */
+/** 4. Foundations — supports all 4 types */
 function RenderFoundations({ data }: { data: Record<string, unknown> }) {
-  const foundations = Array.isArray(data.foundations)
-    ? data.foundations as Record<string, unknown>[]
-    : [];
+  const foundations = Array.isArray(data.foundations) ? data.foundations as Record<string, unknown>[] : [];
   const allowable = parseFloat(String(data.allowableSoilStress || 0)) || 0;
-
   const hasBasement = data.hasBasement !== undefined;
   const basementDesc = typeof data.basementDescription === 'string' && data.basementDescription.length > 0;
-
   const infoRows: { label: string; value: string | number | boolean }[] = [];
   if (hasBasement) infoRows.push({ label: 'يوجد قبو / ملجأ', value: data.hasBasement as boolean });
   if (basementDesc) infoRows.push({ label: 'وصف القبو / الملجأ', value: data.basementDescription as string });
@@ -1219,55 +754,95 @@ function RenderFoundations({ data }: { data: Record<string, unknown> }) {
       {infoRows.length > 0 && (
         <View style={S.table}>
           <ThRow />
-          {infoRows.map((r, i) => (
-            <KVRow key={r.label} label={r.label} value={r.value} alt={i % 2 === 1} />
-          ))}
+          {infoRows.map((r, i) => <KVRow key={r.label} label={r.label} value={r.value} alt={i % 2 === 1} />)}
         </View>
       )}
-
       {foundations.length > 0 && (
         <View>
           <SubHeader number="4.1" title={`تفاصيل الأساسات (${foundations.length} أساس)`} />
           {foundations.map((entry, idx) => {
+            const entryName = String(entry.name || `أساس #${idx + 1}`);
+            const entryType = String(entry.type || '');
+            const typeLabel = FOUNDATION_TYPE_LABELS[entryType] || entryType;
             const len = parseFloat(String(entry.length || 0)) || 0;
             const wid = parseFloat(String(entry.width || 0)) || 0;
             const load = parseFloat(String(entry.totalLoad || 0)) || 0;
-            const entryName = String(entry.name || `أساس #${idx + 1}`);
-            const entryType = String(entry.type || '');
+            const height = parseFloat(String(entry.height || 0)) || 0;
 
-            let soilResult: { actual: number; safe: boolean } | null = null;
-            if (len > 0 && wid > 0 && load > 0 && allowable > 0) {
-              const ch = checkSoilStress({ load, length: len, width: wid, allowableStress: allowable });
-              soilResult = { actual: ch.actual, safe: ch.safe };
+            // Compute results per type
+            let resultRows: { label: string; value: string }[] = [];
+            let isSafe = true;
+
+            if (entryType === 'منفردة' && len > 0 && wid > 0 && load > 0 && allowable > 0) {
+              const r = checkIsolatedFoundation({ load, length: len, width: wid, allowableStress: allowable });
+              isSafe = r.safe;
+              resultRows = [
+                { label: 'الإجهاد الفعلي (كغ/سم²)', value: r.actualStress.toFixed(2) },
+                { label: 'الإجهاد المسموح (كغ/سم²)', value: r.allowableStress.toFixed(2) },
+                { label: 'نسبة الإجهاد المستخدم', value: `${((r.actualStress / r.allowableStress) * 100).toFixed(1)}%` },
+              ];
+            } else if (entryType === 'مشتركة') {
+              const P1 = parseFloat(String(entry.P1 || 0)) || 0;
+              const P2 = parseFloat(String(entry.P2 || 0)) || 0;
+              const S = parseFloat(String(entry.S || 0)) || 0;
+              const L_out = parseFloat(String(entry.L_out || 0)) || 0;
+              if (len > 0 && wid > 0 && P1 > 0 && P2 > 0 && S > 0 && allowable > 0) {
+                const r = checkCombinedFoundation({ P1, P2, S, L: len, B: wid, L_out, allowableStress: allowable });
+                isSafe = r.safe;
+                const caseLabel = r.eccentricityCase === 'ideal' ? 'حالة مثالية (توزيع منتظم)' : r.eccentricityCase === 'acceptable' ? 'حالة مقبولة (شبه منحرف)' : 'خطر دوران';
+                resultRows = [
+                  { label: 'اللامركزية e (سم)', value: r.eccentricity.toFixed(2) },
+                  { label: 'حالة التوزيع', value: caseLabel },
+                  { label: 'σ Max (كغ/سم²)', value: r.sigmaMax.toFixed(2) },
+                  { label: 'σ Min (كغ/سم²)', value: r.sigmaMin.toFixed(2) },
+                  { label: 'الإجهاد المسموح (كغ/سم²)', value: r.allowableStress.toFixed(2) },
+                ];
+                if (r.suggestion) resultRows.push({ label: 'اقتراح', value: r.suggestion });
+              }
+            } else if (entryType === 'حصيرة') {
+              const fc = parseFloat(String(entry.fc || 0)) || 0;
+              const columnLoad = parseFloat(String(entry.columnLoad || 0)) || 0;
+              const colW = parseFloat(String(entry.columnWidth || 40)) || 40;
+              const colD = parseFloat(String(entry.columnDepth || 40)) || 40;
+              const colTypeKey = COLUMN_TYPE_MAP[String(entry.columnType || '')] || 'center';
+              if (height > 0 && fc > 0 && columnLoad > 0) {
+                const r = checkMatFoundation({ columnLoad, matThickness: height, fc, columnWidth: colW, columnDepth: colD, columnType: colTypeKey });
+                isSafe = r.safe;
+                resultRows = [
+                  { label: 'إجهاد الثقب الفعلي vp (كغ/سم²)', value: r.vp.toFixed(2) },
+                  { label: 'مقاومة الثقب vcp = 0.9√f\'c (كغ/سم²)', value: r.vcp.toFixed(2) },
+                  { label: 'المحيط الحرج b0 (سم)', value: r.bo.toFixed(2) },
+                  { label: 'العمق الفعال d (سم)', value: r.d.toFixed(2) },
+                ];
+                if (r.suggestion) resultRows.push({ label: 'اقتراح', value: r.suggestion });
+              }
+            } else if (entryType === 'مستمرة') {
+              const q = parseFloat(String(entry.q || 0)) || 0;
+              if (wid > 0 && q > 0 && allowable > 0) {
+                const r = checkContinuousFoundation({ q, B: wid, allowableStress: allowable });
+                isSafe = r.safe;
+                resultRows = [
+                  { label: 'الإجهاد الفعلي (كغ/سم²)', value: r.actualStress.toFixed(2) },
+                  { label: 'الإجهاد المسموح (كغ/سم²)', value: r.allowableStress.toFixed(2) },
+                ];
+                if (r.Bmin) resultRows.push({ label: 'العرض الأدنى المقترح Bmin (سم)', value: String(r.Bmin) });
+              }
             }
+
+            // Filter entry display fields — skip fields only used for calculations
+            const skipEntryKeys = new Set(['id', 'P1', 'P2', 'S', 'L_out', 'fc', 'columnLoad', 'columnWidth', 'columnDepth', 'columnType', 'q', 'fcSource', 'fcManual']);
 
             return (
               <View key={String(entry.id || idx)} wrap={false}>
-                <EntryCard
-                  title={`${entryName} — ${entryType}`}
-                  safe={soilResult?.safe}
-                >
+                <EntryCard title={`${entryName} — ${typeLabel}`} safe={resultRows.length > 0 ? isSafe : undefined}>
                   {Object.entries(entry)
-                    .filter(([k]) => !shouldSkip(k) && k !== 'id')
+                    .filter(([k]) => !shouldSkip(k) && !skipEntryKeys.has(k))
                     .map(([k, v], i) => (
-                      <KVRow
-                        key={k}
-                        label={FOUNDATION_ENTRY_LABELS[k] || guessLabel(k)}
-                        value={v as string | number}
-                        alt={i % 2 === 1}
-                      />
+                      <KVRow key={k} label={FOUNDATION_ENTRY_LABELS[k] || guessLabel(k)} value={v as string | number} alt={i % 2 === 1} />
                     ))}
                 </EntryCard>
-                {soilResult && (
-                  <ResultsTable
-                    title="نتائج فحص إجهاد التربة"
-                    safe={soilResult.safe}
-                    rows={[
-                      { label: 'الإجهاد الفعلي (كغ/سم²)', value: soilResult.actual.toFixed(2) },
-                      { label: 'الإجهاد المسموح (كغ/سم²)', value: allowable.toFixed(2) },
-                      { label: 'نسبة الإجهاد المستخدم', value: `${((soilResult.actual / allowable) * 100).toFixed(1)}%` },
-                    ]}
-                  />
+                {resultRows.length > 0 && (
+                  <ResultsTable title={`نتائج فحص ${typeLabel}`} safe={isSafe} rows={resultRows} />
                 )}
               </View>
             );
@@ -1278,14 +853,11 @@ function RenderFoundations({ data }: { data: Record<string, unknown> }) {
   );
 }
 
-/** 5. Columns & Walls */
+/** 5. Columns & Walls — uses checkColumnWallStress */
 function RenderColumnsWalls({ data, projectData }: { data: Record<string, unknown>; projectData: Record<string, unknown> }) {
   const entries = Array.isArray(data.entries)
     ? data.entries as Record<string, unknown>[]
-    : Array.isArray(data.columns)
-      ? data.columns as Record<string, unknown>[]
-      : [];
-
+    : Array.isArray(data.columns) ? data.columns as Record<string, unknown>[] : [];
   const sr = projectData.structural_report as Record<string, unknown> | undefined;
   const hammer = sr?.hammerTest as Record<string, unknown> | undefined;
   const fc = Number(hammer?.fc) || 0;
@@ -1301,7 +873,6 @@ function RenderColumnsWalls({ data, projectData }: { data: Record<string, unknow
           </View>
         </View>
       )}
-
       {entries.length > 0 && (
         <View>
           <SubHeader number="5.1" title={`تفاصيل الأعمدة والجدران (${entries.length} عنصر)`} />
@@ -1309,42 +880,47 @@ function RenderColumnsWalls({ data, projectData }: { data: Record<string, unknow
             const w = parseFloat(String(entry.sectionWidth || 0)) || 0;
             const d = parseFloat(String(entry.sectionDepth || 0)) || 0;
             const load = parseFloat(String(entry.totalLoad || 0)) || 0;
+            const H_clear = parseFloat(String(entry.H_clear || 0)) || 0;
+            const nVal = parseFloat(String(entry.n || 0)) || 0;
+            const AsVal = parseFloat(String(entry.As || 0)) || 0;
+            const columnLocation = String(entry.elementType || '') === 'جدار' ? 'وسطي' : String(entry.columnType || '');
             const entryName = String(entry.name || `${entry.elementType || 'عمود'} #${idx + 1}`);
             const elemType = String(entry.elementType || 'عمود');
 
-            let stressResult: { actual: number; allowable: number; safe: boolean } | null = null;
-            if (w > 0 && d > 0 && load > 0 && fc > 0) {
-              const ch = checkColumnStress({ load, width: w, depth: d, fc });
-              stressResult = { actual: ch.actual, allowable: ch.allowable, safe: ch.safe };
+            let resultRows: { label: string; value: string }[] = [];
+            let isSafe = true;
+            if (w > 0 && d > 0 && load > 0 && fc > 0 && H_clear > 0) {
+              const ch = checkColumnWallStress({ load, width: w, depth: d, fc, n: nVal || undefined, As: AsVal || undefined, H_clear, columnLocation });
+              isSafe = ch.safe;
+              resultRows = [
+                { label: 'المساحة المكافئة Aeq (سم²)', value: ch.Aeq.toFixed(2) },
+                { label: 'الإجهاد الفعلي (كغ/سم²)', value: ch.actualStress.toFixed(2) },
+                { label: "الإجهاد المسموح 0.3×f'c (كغ/سم²)", value: ch.allowableStress.toFixed(2) },
+                { label: 'نسبة النحافة λ', value: ch.slendernessRatio.toFixed(2) },
+              ];
+              if (ch.reductionFactor < 1) {
+                resultRows.push(
+                  { label: 'معامل التخفيض φ', value: ch.reductionFactor.toFixed(3) },
+                  { label: 'الإجهاد المسموح الفعّال (كغ/سم²)', value: ch.effectiveAllowable.toFixed(2) },
+                );
+              }
+              resultRows.push({ label: 'مساحة التسليح As (سم²)', value: ch.AsProvided.toFixed(2) });
             }
+
+            // Skip calc-only fields from entry card
+            const skipColKeys = new Set(['id', 'n', 'As', 'H_clear', 'fcSource', 'fcManual']);
 
             return (
               <View key={String(entry.id || idx)} wrap={false}>
-                <EntryCard
-                  title={`${elemType === 'جدار' ? 'جدار' : 'عمود'} #${idx + 1} — ${entryName}`}
-                  safe={stressResult?.safe}
-                >
+                <EntryCard title={`${elemType === 'جدار' ? 'جدار' : 'عمود'} #${idx + 1} — ${entryName}`} safe={resultRows.length > 0 ? isSafe : undefined}>
                   {Object.entries(entry)
-                    .filter(([k]) => !shouldSkip(k) && k !== 'id')
+                    .filter(([k]) => !shouldSkip(k) && !skipColKeys.has(k))
                     .map(([k, v], i) => (
-                      <KVRow
-                        key={k}
-                        label={COLUMN_ENTRY_LABELS[k] || guessLabel(k)}
-                        value={v as string | number}
-                        alt={i % 2 === 1}
-                      />
+                      <KVRow key={k} label={COLUMN_ENTRY_LABELS[k] || guessLabel(k)} value={v as string | number} alt={i % 2 === 1} />
                     ))}
                 </EntryCard>
-                {stressResult && (
-                  <ResultsTable
-                    title="نتائج فحص إجهاد الضغط"
-                    safe={stressResult.safe}
-                    rows={[
-                      { label: 'الإجهاد الفعلي (كغ/سم²)', value: stressResult.actual.toFixed(2) },
-                      { label: "الإجهاد المسموح 0.3 × f'c (كغ/سم²)", value: stressResult.allowable.toFixed(2) },
-                      { label: 'نسبة الإجهاد المستخدم', value: `${((stressResult.actual / stressResult.allowable) * 100).toFixed(1)}%` },
-                    ]}
-                  />
+                {resultRows.length > 0 && (
+                  <ResultsTable title="نتائج فحص إجهاد الضغط" safe={isSafe} rows={resultRows} />
                 )}
               </View>
             );
@@ -1355,33 +931,20 @@ function RenderColumnsWalls({ data, projectData }: { data: Record<string, unknow
   );
 }
 
-/** 6. Beams & Slabs */
+/** 6. Beams & Slabs — comprehensive checks */
 function RenderBeamSlab({ data }: { data: Record<string, unknown> }) {
   const fcVal = parseFloat(String(data.fc || 0)) || 0;
   const fyVal = parseFloat(String(data.fy || 0)) || 0;
   const slabs = Array.isArray(data.slabs) ? data.slabs as Record<string, unknown>[] : [];
   const beams = Array.isArray(data.beams) ? data.beams as Record<string, unknown>[] : [];
 
-  const getEffectiveH = (slab: Record<string, unknown>): number => {
-    const sub = String(slab.slabSubType || '');
-    if (sub.includes('Ribbed')) {
-      return (parseFloat(String(slab.coverThickness || 0)) || 0) + (parseFloat(String(slab.ribHeight || 0)) || 0);
-    }
-    return parseFloat(String(slab.hActual || 0)) || 0;
-  };
-
   return (
     <View>
-      {/* General Parameters */}
       {(fcVal > 0 || fyVal > 0) && (
         <View style={S.table}>
           <ThRow />
-          {fcVal > 0 && (
-            <KVRow label="المقاومة الاسطوانية f'c (كغ/سم²)" value={fcVal} />
-          )}
-          {fyVal > 0 && (
-            <KVRow label="إجهاد خضوع الحديد fy (كغ/سم²)" value={fyVal} alt />
-          )}
+          {fcVal > 0 && <KVRow label="المقاومة الاسطوانية f'c (كغ/سم²)" value={fcVal} />}
+          {fyVal > 0 && <KVRow label="إجهاد خضوع الحديد fy (كغ/سم²)" value={fyVal} alt />}
         </View>
       )}
 
@@ -1392,14 +955,28 @@ function RenderBeamSlab({ data }: { data: Record<string, unknown> }) {
           {slabs.map((slab, idx) => {
             const h = getEffectiveH(slab);
             const subType = String(slab.slabSubType || 'oneWaySolid');
-            const supportCond = subType === 'flatSlab' ? String(slab.hasDropPanels || '') : String(slab.supportCondition || '');
+            const supportCond = getSlabSupportCondition(slab);
             const span = parseFloat(String(slab.span || 0)) || 0;
             const spanLong = parseFloat(String(slab.spanLong || 0)) || 0;
             const spanShort = parseFloat(String(slab.spanShort || 0)) || 0;
-            const spanVal = spanLong || span;
+            let spanVal: number;
+            if (subType === 'twoWaySolid' || subType === 'twoWayRibbed') {
+              spanVal = spanLong || spanShort || span;
+            } else {
+              spanVal = span;
+            }
 
+            const label = SLAB_TYPE_LABELS[subType] || subType;
+            const load = parseFloat(String(slab.load || 0)) || 0;
+            const slabCover = parseFloat(String(slab.cover || 2.5)) || 2.5;
+            const nRebar = parseFloat(String(slab.rebarCount || 0)) || 0;
+            const dRebar = parseFloat(String(slab.rebarDiameter || 0)) || 0;
+            const d = h > slabCover ? h - slabCover : 0;
+            const As = nRebar > 0 && dRebar > 0 ? rebarArea(nRebar, dRebar) : 0;
+
+            // Thickness check
             let thickRes: { safe: boolean; hMin: number } | null = null;
-            if (h > 0 && fcVal > 0 && spanVal > 0) {
+            if (h > 0 && spanVal > 0) {
               const ch = checkSlabThickness({
                 slabType: subType as 'oneWaySolid' | 'twoWaySolid' | 'oneWayRibbed' | 'twoWayRibbed' | 'flatSlab',
                 supportCondition: supportCond,
@@ -1411,13 +988,93 @@ function RenderBeamSlab({ data }: { data: Record<string, unknown> }) {
               thickRes = { safe: ch.safe, hMin: ch.hMin };
             }
 
-            const label = SLAB_TYPE_LABELS[subType] || subType;
+            // Punching shear for flat slabs
+            let punchRows: { label: string; value: string }[] = [];
+            let punchSafe = true;
+            if (subType === 'flatSlab' && h > 0 && fcVal > 0) {
+              const colW = parseFloat(String(slab.punchingColumnWidth || 0)) || 0;
+              const colD = parseFloat(String(slab.punchingColumnDepth || 0)) || 0;
+              const reaction = parseFloat(String(slab.punchingReaction || 0)) || 0;
+              const pColType = (String(slab.punchingColumnType || '') || 'center') as 'center' | 'edge' | 'corner';
+              if (colW > 0 && colD > 0 && reaction > 0) {
+                const pc = checkPunchingShear({ columnWidth: colW, columnDepth: colD, slabThickness: h, reaction, fc: fcVal, columnType: pColType });
+                punchSafe = pc.safe;
+                punchRows = [
+                  { label: 'إجهاد الثقب الفعلي (كغ/سم²)', value: pc.actualStress.toFixed(2) },
+                  { label: 'مقاومة الثقب vp = 0.5√f\'c (كغ/سم²)', value: pc.vp.toFixed(2) },
+                  { label: 'المحيط الحرج b0 (سم)', value: pc.bo.toFixed(2) },
+                ];
+              }
+            }
+
+            // Moment & shear from load
+            let momentShearRows: { label: string; value: string }[] = [];
+            let flexRows: { label: string; value: string }[] = [];
+            let shearRows: { label: string; value: string }[] = [];
+            let rebarRows: { label: string; value: string }[] = [];
+            let flexSafe = true;
+            let shearSafe = true;
+            let rebarSafe = true;
+            let sectionSafe = true;
+
+            if (load > 0 && d > 0 && supportCond && fyVal > 0 && spanVal > 0) {
+              const shortSpan = (subType === 'twoWaySolid' || subType === 'twoWayRibbed') ? (spanShort || spanVal) : spanVal;
+              const ms = calculateSlabMomentShear({ load, span: shortSpan, supportCondition: supportCond, slabType: subType as 'oneWaySolid' | 'twoWaySolid' | 'oneWayRibbed' | 'twoWayRibbed' | 'flatSlab', spanLong: spanLong || undefined, spanShort: spanShort || undefined });
+              momentShearRows = [
+                { label: 'العزم الموجب (طن.سم/م)', value: ms.Mpositive.toFixed(2) },
+                { label: 'العزم السالب (طن.سم/م)', value: ms.Mnegative.toFixed(2) },
+                { label: 'العزم الحاكم (طن.سم/م)', value: ms.Mgovernor.toFixed(2) },
+                { label: 'القص V (طن/م)', value: ms.V.toFixed(3) },
+              ];
+
+              // Flexure check
+              if (As > 0 && ms.Mgovernor > 0 && fcVal > 0) {
+                const fl = checkFlexure({ moment: ms.Mgovernor, width: 100, effectiveDepth: d, As, fc: fcVal, fy: fyVal, isSlab: true });
+                flexSafe = !fl.overReinforced && fl.safe;
+                flexRows = [
+                  { label: 'إجهاد الخرسانة الفعلي fc (كغ/سم²)', value: fl.fc.toFixed(2) },
+                  { label: "إجهاد الخرسانة المسموح 0.4f'c (كغ/سم²)", value: fl.fcAllowable.toFixed(2) },
+                  { label: 'إجهاد الحديد الفعلي fs (كغ/سم²)', value: fl.fs.toFixed(2) },
+                  { label: 'إجهاد الحديد المسموح 0.5fy (كغ/سم²)', value: fl.fsAllowable.toFixed(2) },
+                ];
+                if (fl.overReinforced) flexRows.push({ label: 'ملاحظة', value: 'مقطع مُصلح — تسليح زائد' });
+              }
+
+              // Shear check
+              if (ms.V > 0 && d > 0 && fcVal > 0) {
+                const sc = checkShear({ shear: ms.V, width: 100, effectiveDepth: d, fc: fcVal });
+                shearSafe = !sc.stirrupsNeeded;
+                sectionSafe = sc.safe;
+                shearRows = [
+                  { label: 'إجهاد القص الفعلي v (كغ/سم²)', value: sc.v.toFixed(2) },
+                  { label: 'مقاومة الخرسانة للقص vc (كغ/سم²)', value: sc.vc.toFixed(2) },
+                  { label: 'الإجهاد الأقصى vmax (كغ/سم²)', value: sc.vmax.toFixed(2) },
+                  { label: 'هل تحتاج أطواق؟', value: sc.stirrupsNeeded ? 'نعم' : 'لا' },
+                ];
+              }
+
+              // Rebar comparison
+              if (As > 0 && d > 0 && fcVal > 0) {
+                const rc = compareReinforcement({ AsProvided: As, fc: fcVal, fy: fyVal, element: 'slab', width: 100, effectiveDepth: d });
+                rebarSafe = rc.safe;
+                rebarRows = [
+                  { label: 'As الدنيا (سم²/م)', value: rc.AsMin.toFixed(2) },
+                  { label: 'As المقدمة (سم²/م)', value: rc.AsProvided.toFixed(2) },
+                  { label: 'النسبة As/As_min', value: rc.ratio.toFixed(2) },
+                ];
+              }
+            }
+
+            const allSafe = (thickRes ? thickRes.safe : true) && punchSafe && flexSafe && sectionSafe && rebarSafe;
+
+            // Skip calc-only fields from entry card
+            const skipSlabKeys = new Set(['id', 'punchingColumnWidth', 'punchingColumnDepth', 'punchingReaction', 'punchingColumnType', 'hasDropPanels', 'rebarCount', 'rebarDiameter', 'cover']);
 
             return (
               <View key={String(slab.id || idx)} wrap={false}>
-                <EntryCard title={`بلاطة #${idx + 1} — ${label}`} safe={thickRes?.safe}>
+                <EntryCard title={`بلاطة #${idx + 1} — ${label}`} safe={allSafe}>
                   {Object.entries(slab)
-                    .filter(([k]) => !shouldSkip(k) && k !== 'id')
+                    .filter(([k]) => !shouldSkip(k) && !skipSlabKeys.has(k))
                     .map(([k, v], i) => (
                       <KVRow
                         key={k}
@@ -1428,14 +1085,27 @@ function RenderBeamSlab({ data }: { data: Record<string, unknown> }) {
                     ))}
                 </EntryCard>
                 {thickRes && (
-                  <ResultsTable
-                    title="نتائج فحص شرط السماكة"
-                    safe={thickRes.safe}
+                  <ResultsTable title="نتائج فحص شرط السماكة" safe={thickRes.safe}
                     rows={[
                       { label: 'السماكة المنفذة (سم)', value: String(h) },
                       { label: 'السماكة الدنيا المطلوبة (سم)', value: thickRes.hMin.toFixed(1) },
                     ]}
                   />
+                )}
+                {punchRows.length > 0 && (
+                  <ResultsTable title="نتائج فحص الثقب" safe={punchSafe} rows={punchRows} />
+                )}
+                {momentShearRows.length > 0 && (
+                  <ResultsTable title="حساب العزم والقص" safe={true} rows={momentShearRows} />
+                )}
+                {flexRows.length > 0 && (
+                  <ResultsTable title="نتائج فحص الانعطاف" safe={flexSafe} rows={flexRows} />
+                )}
+                {shearRows.length > 0 && (
+                  <ResultsTable title="نتائج فحص القص" safe={sectionSafe} rows={shearRows} />
+                )}
+                {rebarRows.length > 0 && (
+                  <ResultsTable title="مقارنة التسليح مع الدنيا" safe={rebarSafe} rows={rebarRows} />
                 )}
               </View>
             );
@@ -1456,9 +1126,10 @@ function RenderBeamSlab({ data }: { data: Record<string, unknown> }) {
             const V = parseFloat(String(beam.shear || 0)) || 0;
             const nRebar = parseFloat(String(beam.rebarCount || 0)) || 0;
             const dRebar = parseFloat(String(beam.rebarDiameter || 0)) || 0;
+            const dStirrup = parseFloat(String(beam.stirrupDiameter || 0)) || 0;
+            const nLegs = parseFloat(String(beam.stirrupLegs || 0)) || 0;
             const beamName = String(beam.name || `جائز #${idx + 1}`);
             const beamLabel = BEAM_TYPE_LABELS[String(beam.beamSubType)] || String(beam.beamSubType);
-
             const d = h > cover ? h - cover : 0;
             const As = nRebar > 0 && dRebar > 0 ? rebarArea(nRebar, dRebar) : 0;
 
@@ -1473,14 +1144,7 @@ function RenderBeamSlab({ data }: { data: Record<string, unknown> }) {
             let flexRes: { safe: boolean; fc: number; fs: number; fcAllow: number; fsAllow: number; overReinforced: boolean } | null = null;
             if (M > 0 && b > 0 && d > 0 && As > 0 && fcVal > 0 && fyVal > 0) {
               const fl = checkFlexure({ moment: M, width: b, effectiveDepth: d, As, fc: fcVal, fy: fyVal });
-              flexRes = {
-                safe: !fl.overReinforced && fl.safe,
-                fc: fl.fc,
-                fs: fl.fs,
-                fcAllow: fl.fcAllowable,
-                fsAllow: fl.fsAllowable,
-                overReinforced: fl.overReinforced,
-              };
+              flexRes = { safe: !fl.overReinforced && fl.safe, fc: fl.fc, fs: fl.fs, fcAllow: fl.fcAllowable, fsAllow: fl.fsAllowable, overReinforced: fl.overReinforced };
             }
 
             // Shear check
@@ -1490,16 +1154,37 @@ function RenderBeamSlab({ data }: { data: Record<string, unknown> }) {
               shearRes = { safe: sc.safe, v: sc.v, vc: sc.vc, vmax: sc.vmax, needsStirrups: sc.stirrupsNeeded };
             }
 
-            const allSafe = (thickRes ? thickRes.safe : true)
-              && (flexRes ? flexRes.safe : true)
-              && (shearRes ? shearRes.safe : true);
+            // Rebar comparison
+            let rebarRows: { label: string; value: string }[] = [];
+            let rebarSafe = true;
+            if (As > 0 && b > 0 && d > 0 && fcVal > 0 && fyVal > 0) {
+              const rc = compareReinforcement({ AsProvided: As, fc: fcVal, fy: fyVal, element: 'beam', width: b, effectiveDepth: d });
+              rebarSafe = rc.safe;
+              rebarRows = [
+                { label: 'As الدنيا (سم²)', value: rc.AsMin.toFixed(2) },
+                { label: 'As المقدمة (سم²)', value: rc.AsProvided.toFixed(2) },
+              ];
+            }
+
+            // Stirrup calculation
+            let stirrupRows: { label: string; value: string }[] = [];
+            let stirrupSafe = true;
+            if (shearRes?.needsStirrups && V > 0 && b > 0 && d > 0 && fcVal > 0 && fyVal > 0 && dStirrup > 0 && nLegs > 0) {
+              const FsVal = parseFloat(String(beam.Fs || 0)) || undefined;
+              const st = calculateStirrups({ shear: V, width: b, effectiveDepth: d, fc: fcVal, fy: fyVal, stirrupDiameter: dStirrup, stirrupLegs: nLegs, Fs: FsVal });
+              stirrupSafe = st.safe;
+              stirrupRows = [
+                { label: 'التباعد المطلوب (سم)', value: st.spacing.toFixed(1) },
+                { label: 'التباعد الأقصى smax (سم)', value: st.spacingMax.toFixed(1) },
+                { label: 'حالة الأطواق', value: st.safe ? 'آمن' : 'غير آمن' },
+              ];
+            }
+
+            const allSafe = (thickRes ? thickRes.safe : true) && (flexRes ? flexRes.safe : true) && (shearRes ? shearRes.safe : true) && rebarSafe && stirrupSafe;
 
             const resultRows: { label: string; value: string }[] = [];
             if (thickRes) {
-              resultRows.push({
-                label: `شرط السماكة: h المنفذ = ${h} سم، h Min = ${thickRes.hMin.toFixed(1)} سم`,
-                value: thickRes.safe ? 'محقق' : 'غير محقق',
-              });
+              resultRows.push({ label: `شرط السماكة: h المنفذ = ${h} سم، h Min = ${thickRes.hMin.toFixed(1)} سم`, value: thickRes.safe ? 'محقق' : 'غير محقق' });
             }
             if (flexRes) {
               resultRows.push(
@@ -1508,9 +1193,7 @@ function RenderBeamSlab({ data }: { data: Record<string, unknown> }) {
                 { label: 'إجهاد الحديد الفعلي fs (كغ/سم²)', value: flexRes.fs.toFixed(2) },
                 { label: 'إجهاد الحديد المسموح 0.5fy (كغ/سم²)', value: flexRes.fsAllow.toFixed(2) },
               );
-              if (flexRes.overReinforced) {
-                resultRows.push({ label: 'ملاحظة', value: 'تسليح زائد — يحتاج إعادة تصميم' });
-              }
+              if (flexRes.overReinforced) resultRows.push({ label: 'ملاحظة', value: 'تسليح زائد — يحتاج إعادة تصميم' });
             }
             if (shearRes) {
               resultRows.push(
@@ -1521,11 +1204,14 @@ function RenderBeamSlab({ data }: { data: Record<string, unknown> }) {
               );
             }
 
+            // Skip calc-only fields
+            const skipBeamKeys = new Set(['id', 'stirrupDiameter', 'stirrupLegs', 'Fs']);
+
             return (
               <View key={String(beam.id || idx)} wrap={false}>
                 <EntryCard title={`${beamName} — ${beamLabel}`} safe={allSafe}>
                   {Object.entries(beam)
-                    .filter(([k]) => !shouldSkip(k) && k !== 'id')
+                    .filter(([k]) => !shouldSkip(k) && !skipBeamKeys.has(k))
                     .map(([k, v], i) => (
                       <KVRow
                         key={k}
@@ -1536,11 +1222,13 @@ function RenderBeamSlab({ data }: { data: Record<string, unknown> }) {
                     ))}
                 </EntryCard>
                 {resultRows.length > 0 && (
-                  <ResultsTable
-                    title="نتائج الفحوصات الإنشائية"
-                    safe={allSafe}
-                    rows={resultRows}
-                  />
+                  <ResultsTable title="نتائج الفحوصات الإنشائية" safe={allSafe} rows={resultRows} />
+                )}
+                {rebarRows.length > 0 && (
+                  <ResultsTable title="مقارنة التسليح مع الدنيا" safe={rebarSafe} rows={rebarRows} />
+                )}
+                {stirrupRows.length > 0 && (
+                  <ResultsTable title="نتائج حساب الأطواق" safe={stirrupSafe} rows={stirrupRows} />
                 )}
               </View>
             );
@@ -1551,7 +1239,7 @@ function RenderBeamSlab({ data }: { data: Record<string, unknown> }) {
   );
 }
 
-/** 7. Electrical Report (Specialized) */
+/** 7. Electrical Report */
 function RenderElectricalReport({ data }: { data: Record<string, unknown> }) {
   const mainSupply = String(data.mainSupply || '');
   const mainPanel = String(data.mainPanelCondition || '');
@@ -1560,14 +1248,10 @@ function RenderElectricalReport({ data }: { data: Record<string, unknown> }) {
   const lowCurrentSystems = Array.isArray(data.lowCurrentSystems) ? data.lowCurrentSystems as string[] : [];
   const installationsDesc = String(data.installationsDescription || '');
   const observations = String(data.observations || '');
-
   const hasAnyData = mainSupply || mainPanel || lighting || hasLowCurrent || installationsDesc || observations;
-
   if (!hasAnyData) return <Text style={S.noData}>لا توجد بيانات متاحة</Text>;
-
   return (
     <View>
-      {/* Main info table */}
       <View style={S.table}>
         <ThRow />
         {mainSupply && <KVRow label={ELECTRICAL_LABELS.mainSupply} value={mainSupply} />}
@@ -1575,8 +1259,6 @@ function RenderElectricalReport({ data }: { data: Record<string, unknown> }) {
         {lighting && <KVRow label={ELECTRICAL_LABELS.lightingCondition} value={lighting} />}
         <KVRow label={ELECTRICAL_LABELS.hasLowCurrentSystem} value={hasLowCurrent} alt={!!lighting} />
       </View>
-
-      {/* Low current systems */}
       {hasLowCurrent && lowCurrentSystems.length > 0 && (
         <View>
           <SubHeader number="7.1" title={`أنظمة التيار الضعيف (${lowCurrentSystems.length} نظام)`} />
@@ -1588,16 +1270,12 @@ function RenderElectricalReport({ data }: { data: Record<string, unknown> }) {
           </View>
         </View>
       )}
-
-      {/* Installations description */}
       {installationsDesc && (
         <View>
           <SubHeader number={hasLowCurrent ? "7.2" : "7.1"} title="وصف التمديدات الكهربائية" />
           <TextBlock>{installationsDesc}</TextBlock>
         </View>
       )}
-
-      {/* Observations */}
       {observations && (
         <View style={S.blueInfoBox}>
           <Text style={S.blueInfoLabel}>الملاحظات والمشاهدات</Text>
@@ -1608,7 +1286,7 @@ function RenderElectricalReport({ data }: { data: Record<string, unknown> }) {
   );
 }
 
-/** 8. Plumbing Report (Specialized) */
+/** 8. Plumbing Report */
 function RenderPlumbingReport({ data }: { data: Record<string, unknown> }) {
   const mainSupply = String(data.mainSupply || '');
   const saltWater = String(data.saltWaterNetwork || '');
@@ -1616,14 +1294,10 @@ function RenderPlumbingReport({ data }: { data: Record<string, unknown> }) {
   const hasLeakage = data.hasLeakage === true;
   const leakageDesc = String(data.leakageDescription || '');
   const notes = String(data.notes || '');
-
   const hasAnyData = mainSupply || saltWater || freshWater || hasLeakage || notes;
-
   if (!hasAnyData) return <Text style={S.noData}>لا توجد بيانات متاحة</Text>;
-
   return (
     <View>
-      {/* Main info table */}
       <View style={S.table}>
         <ThRow />
         {mainSupply && <KVRow label={PLUMBING_LABELS.mainSupply} value={mainSupply} />}
@@ -1631,8 +1305,6 @@ function RenderPlumbingReport({ data }: { data: Record<string, unknown> }) {
         {freshWater && <KVRow label={PLUMBING_LABELS.freshWaterNetwork} value={freshWater} />}
         <KVRow label={PLUMBING_LABELS.hasLeakage} value={hasLeakage} alt={!!freshWater} />
       </View>
-
-      {/* Leakage details */}
       {hasLeakage && leakageDesc && (
         <View>
           <SubHeader number="8.1" title="تفاصيل التسرب" />
@@ -1642,8 +1314,6 @@ function RenderPlumbingReport({ data }: { data: Record<string, unknown> }) {
           </View>
         </View>
       )}
-
-      {/* Notes */}
       {notes && (
         <View style={S.purpleInfoBox}>
           <Text style={S.purpleInfoLabel}>{PLUMBING_LABELS.notes}</Text>
@@ -1654,7 +1324,7 @@ function RenderPlumbingReport({ data }: { data: Record<string, unknown> }) {
   );
 }
 
-/** 9. Technical Notes (Specialized) */
+/** 9. Technical Notes */
 function RenderTechnicalNotes({ data }: { data: Record<string, unknown> }) {
   const archNotes = data.architecturalNotes as Record<string, unknown> | undefined;
   const structNotes = data.structuralNotes as Record<string, unknown> | undefined;
@@ -1662,17 +1332,9 @@ function RenderTechnicalNotes({ data }: { data: Record<string, unknown> }) {
   const plumbNotes = data.plumbingNotes as Record<string, unknown> | undefined;
   const location = String(data.location || '');
   const recommendations = String(data.recommendations || '');
-
-  const hasAnyData = (archNotes && Object.keys(archNotes).length > 0)
-    || (structNotes && Object.keys(structNotes).length > 0)
-    || (elecNotes && Object.keys(elecNotes).length > 0)
-    || (plumbNotes && Object.keys(plumbNotes).length > 0)
-    || location || recommendations;
-
+  const hasAnyData = (archNotes && Object.keys(archNotes).length > 0) || (structNotes && Object.keys(structNotes).length > 0) || (elecNotes && Object.keys(elecNotes).length > 0) || (plumbNotes && Object.keys(plumbNotes).length > 0) || location || recommendations;
   if (!hasAnyData) return <Text style={S.noData}>لا توجد بيانات متاحة</Text>;
-
   let subIdx = 0;
-
   return (
     <View>
       {location && (
@@ -1681,68 +1343,50 @@ function RenderTechnicalNotes({ data }: { data: Record<string, unknown> }) {
           <Text style={[S.infoBoxValue, { textAlign: 'right' }]}>{location}</Text>
         </View>
       )}
-
-      {/* Architectural observations */}
       {archNotes && typeof archNotes === 'object' && (
         <View>
           <SubHeader number={`9.${++subIdx}`} title="ملاحظات معمارية" />
           <View style={S.table}>
             <ThRow />
-            {Object.entries(archNotes)
-              .filter(([k, v]) => v && String(v).length > 0)
-              .map(([k, v], i) => (
-                <KVRow key={k} label={TECH_ARCHITECTURAL_LABELS[k] || guessLabel(k)} value={String(v)} alt={i % 2 === 1} />
-              ))}
+            {Object.entries(archNotes).filter(([, v]) => v && String(v).length > 0).map(([k, v], i) => (
+              <KVRow key={k} label={TECH_ARCHITECTURAL_LABELS[k] || guessLabel(k)} value={String(v)} alt={i % 2 === 1} />
+            ))}
           </View>
         </View>
       )}
-
-      {/* Structural observations */}
       {structNotes && typeof structNotes === 'object' && (
         <View>
           <SubHeader number={`9.${++subIdx}`} title="ملاحظات إنشائية" />
           <View style={S.table}>
             <ThRow />
-            {Object.entries(structNotes)
-              .filter(([k, v]) => v && String(v).length > 0)
-              .map(([k, v], i) => (
-                <KVRow key={k} label={TECH_STRUCTURAL_LABELS[k] || guessLabel(k)} value={String(v)} alt={i % 2 === 1} />
-              ))}
+            {Object.entries(structNotes).filter(([, v]) => v && String(v).length > 0).map(([k, v], i) => (
+              <KVRow key={k} label={TECH_STRUCTURAL_LABELS[k] || guessLabel(k)} value={String(v)} alt={i % 2 === 1} />
+            ))}
           </View>
         </View>
       )}
-
-      {/* Electrical observations */}
       {elecNotes && typeof elecNotes === 'object' && (
         <View>
           <SubHeader number={`9.${++subIdx}`} title="ملاحظات كهربائية" />
           <View style={S.table}>
             <ThRow />
-            {Object.entries(elecNotes)
-              .filter(([k, v]) => v && String(v).length > 0)
-              .map(([k, v], i) => (
-                <KVRow key={k} label={TECH_ELECTRICAL_LABELS[k] || guessLabel(k)} value={String(v)} alt={i % 2 === 1} />
-              ))}
+            {Object.entries(elecNotes).filter(([, v]) => v && String(v).length > 0).map(([k, v], i) => (
+              <KVRow key={k} label={TECH_ELECTRICAL_LABELS[k] || guessLabel(k)} value={String(v)} alt={i % 2 === 1} />
+            ))}
           </View>
         </View>
       )}
-
-      {/* Plumbing observations */}
       {plumbNotes && typeof plumbNotes === 'object' && (
         <View>
           <SubHeader number={`9.${++subIdx}`} title="ملاحظات صحية" />
           <View style={S.table}>
             <ThRow />
-            {Object.entries(plumbNotes)
-              .filter(([k, v]) => v && String(v).length > 0)
-              .map(([k, v], i) => (
-                <KVRow key={k} label={TECH_PLUMBING_LABELS[k] || guessLabel(k)} value={String(v)} alt={i % 2 === 1} />
-              ))}
+            {Object.entries(plumbNotes).filter(([, v]) => v && String(v).length > 0).map(([k, v], i) => (
+              <KVRow key={k} label={TECH_PLUMBING_LABELS[k] || guessLabel(k)} value={String(v)} alt={i % 2 === 1} />
+            ))}
           </View>
         </View>
       )}
-
-      {/* Recommendations */}
       {recommendations && (
         <View style={[S.infoBox, { backgroundColor: C.amberBg, borderColor: C.amberBorder }]}>
           <Text style={[S.infoBoxLabel, { color: C.amber }]}>التوصيات</Text>
@@ -1753,7 +1397,7 @@ function RenderTechnicalNotes({ data }: { data: Record<string, unknown> }) {
   );
 }
 
-/** 10. Final Report (Specialized) */
+/** 10. Final Report */
 function RenderFinalReport({ data }: { data: Record<string, unknown> }) {
   const requirements = String(data.requirements || '');
   const overallEvaluation = String(data.overallEvaluation || '');
@@ -1761,22 +1405,16 @@ function RenderFinalReport({ data }: { data: Record<string, unknown> }) {
   const reportPurposeDesc = String(data.reportPurposeDescription || '');
   const engineers = Array.isArray(data.engineers) ? data.engineers as Record<string, unknown>[] : [];
   const approvals = Array.isArray(data.approvals) ? data.approvals as Record<string, unknown>[] : [];
-
   const hasAnyData = requirements || overallEvaluation || reportPurpose || engineers.length > 0 || approvals.length > 0;
-
   if (!hasAnyData) return <Text style={S.noData}>لا توجد بيانات متاحة</Text>;
-
-  // Determine evaluation color
   const getEvalColor = (evalText: string): { bg: string; border: string; text: string } => {
     if (evalText.includes('آمن')) return { bg: C.safeBg, border: C.safeBorder, text: C.safe };
     if (evalText.includes('خطر') || evalText.includes('غير آمن')) return { bg: C.unsafeBg, border: C.unsafeBorder, text: C.unsafe };
     if (evalText.includes('ترميم') || evalText.includes('مراقبة')) return { bg: C.amberBg, border: C.amberBorder, text: C.amber };
     return { bg: C.blueBg, border: C.blueBorder, text: C.blue };
   };
-
   return (
     <View>
-      {/* Report purpose */}
       {(reportPurpose || reportPurposeDesc) && (
         <View>
           <SubHeader number="10.1" title="غاية التقرير" />
@@ -1789,16 +1427,12 @@ function RenderFinalReport({ data }: { data: Record<string, unknown> }) {
           )}
         </View>
       )}
-
-      {/* Requirements */}
       {requirements && (
         <View>
           <SubHeader number="10.2" title="المتطلبات والاشتراطات" />
           <TextBlock>{requirements}</TextBlock>
         </View>
       )}
-
-      {/* Overall evaluation */}
       {overallEvaluation && (
         <View>
           <SubHeader number="10.3" title="التقييم العام" />
@@ -1812,8 +1446,6 @@ function RenderFinalReport({ data }: { data: Record<string, unknown> }) {
           })()}
         </View>
       )}
-
-      {/* Engineers table */}
       {engineers.length > 0 && (
         <View>
           <SubHeader number="10.4" title={`المهندسون (${engineers.length} مهندس)`} />
@@ -1835,8 +1467,6 @@ function RenderFinalReport({ data }: { data: Record<string, unknown> }) {
           </View>
         </View>
       )}
-
-      {/* Approvals table */}
       {approvals.length > 0 && (
         <View>
           <SubHeader number="10.5" title={`المعتمدون (${approvals.length} معتمد)`} />
@@ -1866,9 +1496,7 @@ function RenderFinalReport({ data }: { data: Record<string, unknown> }) {
 
 /** Generic Section fallback */
 function RenderGenericSection({ data }: { data: Record<string, unknown> }) {
-  if (!data || Object.keys(data).length === 0) {
-    return <Text style={S.noData}>لا توجد بيانات متاحة</Text>;
-  }
+  if (!data || Object.keys(data).length === 0) return <Text style={S.noData}>لا توجد بيانات متاحة</Text>;
   return <KVTable data={data} />;
 }
 
@@ -1876,45 +1504,24 @@ function RenderGenericSection({ data }: { data: Record<string, unknown> }) {
 // SECTION DISPATCHER
 // ===================================================================
 
-function RenderSection({
-  section,
-  projectData,
-}: {
-  section: PDFSection;
-  projectData: Record<string, unknown>;
-}) {
+function RenderSection({ section, projectData }: { section: PDFSection; projectData: Record<string, unknown> }) {
   const data = projectData[section.dataKey] as Record<string, unknown> | undefined;
-
   const content = (() => {
-    if (!data || Object.keys(data).length === 0) {
-      return <Text style={S.noData}>لا توجد بيانات متاحة</Text>;
-    }
+    if (!data || Object.keys(data).length === 0) return <Text style={S.noData}>لا توجد بيانات متاحة</Text>;
     switch (section.id) {
-      case 'buildingData':
-        return <RenderBuildingData data={data} />;
-      case 'architecturalReport':
-        return <RenderArchitecturalReport data={data} />;
-      case 'structuralReport':
-        return <RenderStructuralReport data={data} projectData={projectData} />;
-      case 'foundations':
-        return <RenderFoundations data={data} />;
-      case 'columnsWalls':
-        return <RenderColumnsWalls data={data} projectData={projectData} />;
-      case 'beamSlab':
-        return <RenderBeamSlab data={data} />;
-      case 'electricalReport':
-        return <RenderElectricalReport data={data} />;
-      case 'plumbingReport':
-        return <RenderPlumbingReport data={data} />;
-      case 'technicalNotes':
-        return <RenderTechnicalNotes data={data} />;
-      case 'finalReport':
-        return <RenderFinalReport data={data} />;
-      default:
-        return <RenderGenericSection data={data} />;
+      case 'buildingData': return <RenderBuildingData data={data} />;
+      case 'architecturalReport': return <RenderArchitecturalReport data={data} />;
+      case 'structuralReport': return <RenderStructuralReport data={data} projectData={projectData} />;
+      case 'foundations': return <RenderFoundations data={data} />;
+      case 'columnsWalls': return <RenderColumnsWalls data={data} projectData={projectData} />;
+      case 'beamSlab': return <RenderBeamSlab data={data} />;
+      case 'electricalReport': return <RenderElectricalReport data={data} />;
+      case 'plumbingReport': return <RenderPlumbingReport data={data} />;
+      case 'technicalNotes': return <RenderTechnicalNotes data={data} />;
+      case 'finalReport': return <RenderFinalReport data={data} />;
+      default: return <RenderGenericSection data={data} />;
     }
   })();
-
   return (
     <View style={S.section} wrap={false}>
       <SectionHeader number={section.number} title={section.label} />
@@ -1928,11 +1535,7 @@ function RenderSection({
 // ===================================================================
 
 function getReportDate(): string {
-  return new Date().toLocaleDateString('ar-SY', {
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric',
-  });
+  return new Date().toLocaleDateString('ar-SY', { year: 'numeric', month: 'long', day: 'numeric' });
 }
 
 export function BSReportDocument({ config }: { config: PDFReportConfig }) {
@@ -1941,28 +1544,15 @@ export function BSReportDocument({ config }: { config: PDFReportConfig }) {
 
   return (
     <Document>
-      {/* ===== Cover Page ===== */}
+      {/* Cover Page */}
       <Page size="A4" style={S.coverPage}>
         <View style={S.coverContent}>
-          {/* Logo */}
-          <View style={S.coverLogo}>
-            <Text style={S.coverLogoText}>BS</Text>
-          </View>
-
-          {/* Title */}
+          <View style={S.coverLogo}><Text style={S.coverLogoText}>BS</Text></View>
           <Text style={S.coverTitle}>تقرير تقييم المباني الخرسانية المسلحة</Text>
           <Text style={S.coverSubtitle}>B.S Evaluation Report</Text>
           <Text style={S.coverCode}>وفقاً للكود العربي السوري 2024 — الطريقة الكلاسيكية التشغيلية</Text>
-
-          {/* Divider */}
           <View style={S.coverDivider} />
-
-          {/* Company name */}
-          {companyName && (
-            <Text style={S.coverCompany}>{companyName}</Text>
-          )}
-
-          {/* Building owner if available */}
+          {companyName && <Text style={S.coverCompany}>{companyName}</Text>}
           {(() => {
             const bd = projectData.building_data as Record<string, unknown> | undefined;
             const owner = bd?.ownerName ? String(bd.ownerName) : '';
@@ -1975,26 +1565,18 @@ export function BSReportDocument({ config }: { config: PDFReportConfig }) {
               </View>
             );
           })()}
-
-          {/* Date */}
           <Text style={S.coverDate}>تاريخ التقرير: {dateStr}</Text>
-
-          {/* Copyright */}
-          <Text style={S.coverCopyright}>
-            المهندس الاستشاري: بشار السليمان — جميع الحقوق محفوظة © {new Date().getFullYear()}
-          </Text>
+          <Text style={S.coverCopyright}>المهندس الاستشاري: بشار السليمان — جميع الحقوق محفوظة © {new Date().getFullYear()}</Text>
         </View>
       </Page>
 
-      {/* ===== Table of Contents ===== */}
+      {/* Table of Contents */}
       <Page size="A4" style={S.tocPage}>
-        {/* Header */}
         <View style={S.header} fixed>
           {companyName && <Text style={S.headerCompany}>{companyName}</Text>}
           <Text style={S.headerTitle}>تقرير تقييم المباني الخرسانية المسلحة</Text>
           <Text style={S.headerSubtitle}>وفقاً للكود العربي السوري 2024</Text>
         </View>
-
         <View style={S.tocContent}>
           <Text style={S.tocTitle}>فهرس المحتويات</Text>
           {sections.map((section, i) => (
@@ -2004,67 +1586,37 @@ export function BSReportDocument({ config }: { config: PDFReportConfig }) {
             </View>
           ))}
         </View>
-
-        {/* Footer */}
         <View style={S.footer} fixed>
-          <Text style={S.footerText}>
-            تم إعداد هذا التقرير وفقاً للكود العربي السوري 2024
-          </Text>
+          <Text style={S.footerText}>تم إعداد هذا التقرير وفقاً للكود العربي السوري 2024</Text>
         </View>
         <Text style={S.footerPage} render={({ pageNumber, totalPages }) => `${pageNumber} / ${totalPages}`} fixed />
       </Page>
 
-      {/* ===== Content Pages ===== */}
+      {/* Content Pages */}
       {sections.map((section, secIdx) => {
         const isLastPage = secIdx === sections.length - 1;
-
         return (
           <Page key={section.id} size="A4" style={S.page}>
-            {/* ===== Repeating Header ===== */}
             <View style={S.header} fixed>
-              {companyName && (
-                <Text style={S.headerCompany}>{companyName}</Text>
-              )}
+              {companyName && <Text style={S.headerCompany}>{companyName}</Text>}
               <Text style={S.headerTitle}>تقرير تقييم المباني الخرسانية المسلحة</Text>
-              <Text style={S.headerSubtitle}>
-                وفقاً للكود العربي السوري 2024 — الطريقة الكلاسيكية التشغيلية
-              </Text>
+              <Text style={S.headerSubtitle}>وفقاً للكود العربي السوري 2024 — الطريقة الكلاسيكية التشغيلية</Text>
               <Text style={S.headerDate}>تاريخ التقرير: {dateStr}</Text>
-              {reportHeader && (
-                <Text style={S.headerCustomText}>{reportHeader}</Text>
-              )}
+              {reportHeader && <Text style={S.headerCustomText}>{reportHeader}</Text>}
             </View>
-
-            {/* ===== Content ===== */}
             <View style={S.content}>
               <RenderSection section={section} projectData={projectData} />
-
-              {/* Separator between sections (except last) */}
               {!isLastPage && <Sep />}
             </View>
-
-            {/* ===== Repeating Footer ===== */}
             <View style={S.footer} fixed>
               {reportFooter ? (
                 <Text style={S.footerText}>{reportFooter}</Text>
               ) : (
-                <Text style={S.footerText}>
-                  تم إعداد هذا التقرير وفقاً للكود العربي السوري 2024 — الطريقة الكلاسيكية التشغيلية
-                </Text>
+                <Text style={S.footerText}>تم إعداد هذا التقرير وفقاً للكود العربي السوري 2024 — الطريقة الكلاسيكية التشغيلية</Text>
               )}
-              {isLastPage && (
-                <Text style={S.footerEndMark}>— نهاية التقرير —</Text>
-              )}
+              {isLastPage && <Text style={S.footerEndMark}>— نهاية التقرير —</Text>}
             </View>
-
-            {/* Page number */}
-            <Text
-              style={S.footerPage}
-              render={({ pageNumber, totalPages }) =>
-                `${pageNumber} / ${totalPages}`
-              }
-              fixed
-            />
+            <Text style={S.footerPage} render={({ pageNumber, totalPages }) => `${pageNumber} / ${totalPages}`} fixed />
           </Page>
         );
       })}
@@ -2081,7 +1633,6 @@ export async function generatePDFBlob(config: PDFReportConfig): Promise<Blob> {
     const loaded = await loadArabicFont();
     if (!loaded) throw new Error('Failed to load Arabic font for PDF');
   }
-
   const blob = await pdf(<BSReportDocument config={config} />).toBlob();
   return blob;
 }
