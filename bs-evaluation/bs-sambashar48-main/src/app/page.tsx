@@ -21,6 +21,12 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog';
 import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+} from '@/components/ui/sheet';
+import {
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
@@ -111,6 +117,16 @@ export default function HomePage() {
   } = useProjectStore();
 
   const [mounted, setMounted] = useState(false);
+  const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({
+    projectData: true,
+    architectural: true,
+    structural: true,
+    structuralEval: true,
+    electrical: true,
+    plumbing: true,
+    reportGen: true,
+    general: true,
+  });
   const [showNewProject, setShowNewProject] = useState(false);
   const [newProjectName, setNewProjectName] = useState('');
   const [editProjectId, setEditProjectId] = useState<string | null>(null);
@@ -774,7 +790,7 @@ export default function HomePage() {
     );
   }
 
-  // Sidebar navigation groups with colored icons
+  // Sidebar navigation groups with custom colored icons
   const sidebarGroups = [
     {
       id: 'projectData',
@@ -785,6 +801,7 @@ export default function HomePage() {
       borderClass: 'border-emerald-500/20',
       indicatorClass: 'bg-emerald-500',
       items: [
+        { id: 'savedProjects', label: t.savedProjects, icon: FolderOpen, isSpecial: true as const },
         { id: 'buildingData', label: t.buildingData, icon: Database },
       ],
     },
@@ -792,22 +809,22 @@ export default function HomePage() {
       id: 'architectural',
       label: t.groupArchitectural,
       icon: DraftingCompass,
-      colorClass: 'text-amber-600 dark:text-amber-400',
-      bgClass: 'bg-amber-500/10',
-      borderClass: 'border-amber-500/20',
-      indicatorClass: 'bg-amber-500',
+      colorClass: 'text-[#D4A574] dark:text-[#E0B88A]',
+      bgClass: 'bg-[#D4A574]/10',
+      borderClass: 'border-[#D4A574]/20',
+      indicatorClass: 'bg-[#D4A574]',
       items: [
         { id: 'architecturalReport', label: t.architecturalReport, icon: FileText },
       ],
     },
     {
-      id: 'structuralEval',
-      label: t.groupStructuralEval,
-      icon: Hammer,
-      colorClass: 'text-blue-600 dark:text-blue-400',
-      bgClass: 'bg-blue-500/10',
-      borderClass: 'border-blue-500/20',
-      indicatorClass: 'bg-blue-500',
+      id: 'structural',
+      label: t.groupStructural,
+      icon: Building2,
+      colorClass: 'text-[#5B8DB8] dark:text-[#7BAED4]',
+      bgClass: 'bg-[#5B8DB8]/10',
+      borderClass: 'border-[#5B8DB8]/20',
+      indicatorClass: 'bg-[#5B8DB8]',
       items: [
         { id: 'structuralReport', label: t.structuralReport, icon: Building2 },
         { id: 'foundations', label: t.foundations, icon: Layers },
@@ -818,13 +835,23 @@ export default function HomePage() {
       ],
     },
     {
+      id: 'structuralEval',
+      label: t.groupStructuralEval,
+      icon: Hammer,
+      colorClass: 'text-teal-600 dark:text-teal-400',
+      bgClass: 'bg-teal-500/10',
+      borderClass: 'border-teal-500/20',
+      indicatorClass: 'bg-teal-500',
+      items: [],
+    },
+    {
       id: 'electrical',
       label: t.groupElectrical,
       icon: Zap,
-      colorClass: 'text-yellow-600 dark:text-yellow-400',
-      bgClass: 'bg-yellow-500/10',
-      borderClass: 'border-yellow-500/20',
-      indicatorClass: 'bg-yellow-500',
+      colorClass: 'text-[#E8B84B] dark:text-[#F0C868]',
+      bgClass: 'bg-[#E8B84B]/10',
+      borderClass: 'border-[#E8B84B]/20',
+      indicatorClass: 'bg-[#E8B84B]',
       items: [
         { id: 'electricalReport', label: t.electricalReport, icon: PlugZap },
       ],
@@ -845,10 +872,10 @@ export default function HomePage() {
       id: 'reportGen',
       label: t.groupReportGen,
       icon: FileDown,
-      colorClass: 'text-violet-600 dark:text-violet-400',
-      bgClass: 'bg-violet-500/10',
-      borderClass: 'border-violet-500/20',
-      indicatorClass: 'bg-violet-500',
+      colorClass: 'text-[#8B7EC8] dark:text-[#A99BE0]',
+      bgClass: 'bg-[#8B7EC8]/10',
+      borderClass: 'border-[#8B7EC8]/20',
+      indicatorClass: 'bg-[#8B7EC8]',
       items: [
         { id: 'pdfExport', label: t.pdfExport, icon: ClipboardList },
       ],
@@ -857,10 +884,10 @@ export default function HomePage() {
       id: 'general',
       label: t.groupGeneral,
       icon: Settings,
-      colorClass: 'text-slate-500 dark:text-slate-400',
-      bgClass: 'bg-slate-500/10',
-      borderClass: 'border-slate-500/20',
-      indicatorClass: 'bg-slate-500',
+      colorClass: 'text-[#8B8FA3] dark:text-[#A0A4B8]',
+      bgClass: 'bg-[#8B8FA3]/10',
+      borderClass: 'border-[#8B8FA3]/20',
+      indicatorClass: 'bg-[#8B8FA3]',
       items: [
         { id: 'settings', label: t.settings, icon: Settings },
         { id: 'about', label: t.about, icon: AppWindow },
@@ -868,19 +895,13 @@ export default function HomePage() {
     },
   ];
 
-  // Track which groups are expanded
-  const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>(() => {
-    const initial: Record<string, boolean> = {};
-    sidebarGroups.forEach((g) => { initial[g.id] = true; });
-    return initial;
-  });
-
+  // Track which groups are expanded (initialized above before early return)
   const toggleGroup = (groupId: string) => {
     setExpandedGroups((prev) => ({ ...prev, [groupId]: !prev[groupId] }));
   };
 
-  // Flat tab list for mobile tab bar
-  const allTabs = sidebarGroups.flatMap((g) => g.items);
+  // Flat tab list for mobile tab bar (exclude special items and empty groups)
+  const allTabs = sidebarGroups.flatMap((g) => g.items.filter((item) => !('isSpecial' in item && item.isSpecial)));
 
   const renderTabContent = () => {
     switch (activeTab) {
@@ -1141,8 +1162,8 @@ export default function HomePage() {
   // ====== Reusable Sidebar Content (shared between desktop & mobile) ======
   const renderSidebarContent = (onAfterSelect?: () => void) => (
     <>
-      {/* Professional Header with Gradient */}
-      <div className="relative overflow-hidden bg-gradient-to-br from-emerald-700 via-teal-600 to-emerald-500 dark:from-emerald-900 dark:via-teal-800 dark:to-emerald-700">
+      {/* Professional Header with Enhanced Gradient */}
+      <div className="relative overflow-hidden bg-gradient-to-br from-emerald-800 via-teal-500 to-emerald-400 dark:from-emerald-950 dark:via-teal-700 dark:to-emerald-600">
         {/* Diagonal engineering lines background */}
         <div className="absolute inset-0 opacity-[0.07]" style={{
           backgroundImage: `repeating-linear-gradient(
@@ -1153,23 +1174,23 @@ export default function HomePage() {
             rgba(255,255,255,0.5) 9px
           )`
         }} />
-        <div className="relative p-4 text-center">
-          {/* Logo */}
-          <div className="mx-auto mb-2 w-16 h-16 rounded-xl bg-white/20 backdrop-blur-sm flex items-center justify-center shadow-lg border border-white/20">
+        <div className="relative p-5 text-center">
+          {/* Logo — slightly larger */}
+          <div className="mx-auto mb-3 w-[72px] h-[72px] rounded-xl bg-white/20 backdrop-blur-sm flex items-center justify-center shadow-lg border border-white/20">
             <Image
               src="/logo-circle.png"
               alt="B.S"
-              width={56}
-              height={56}
+              width={60}
+              height={60}
               className="rounded-lg"
             />
           </div>
-          {/* App Name */}
-          <h2 className="text-lg font-bold text-white tracking-wide">B.S Evaluation</h2>
-          {/* Subtitle */}
-          <p className="text-[10px] text-emerald-100/80 mt-0.5 leading-relaxed">{t.appFullName}</p>
-          {/* Copyright */}
-          <p className="text-[8px] text-emerald-100/50 mt-1.5 leading-tight">{t.copyright}</p>
+          {/* App Name — larger and bolder */}
+          <h2 className="text-xl font-extrabold text-white tracking-wide">B.S Evaluation</h2>
+          {/* Subtitle — Arabic */}
+          <p className="text-xs text-emerald-100/80 mt-1 leading-relaxed font-light">{t.appFullName}</p>
+          {/* Copyright — very small */}
+          <p className="text-[8px] text-emerald-100/50 mt-2 leading-tight">{t.copyright}</p>
         </div>
       </div>
 
@@ -1180,18 +1201,32 @@ export default function HomePage() {
 
       {/* Grouped Tab Navigation */}
       <ScrollArea className="flex-1 px-2 py-1">
-        <nav className="space-y-1">
-          {sidebarGroups.map((group) => {
+        <nav className="space-y-0">
+          {sidebarGroups.map((group, groupIndex) => {
             const GroupIcon = group.icon;
             const isExpanded = expandedGroups[group.id];
             const hasActiveItem = group.items.some((item) => item.id === activeTab);
+            const isLabelOnly = group.items.length === 0;
+
+            // For label-only groups (like structuralEval), render a non-clickable divider
+            if (isLabelOnly) {
+              return (
+                <div key={group.id} className="py-2">
+                  <div className="h-px bg-border/40 mx-2 mb-2" />
+                  <div className={`flex items-center gap-2 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wider ${group.colorClass} opacity-70`}>
+                    <GroupIcon className="w-3.5 h-3.5 shrink-0" />
+                    <span>{group.label}</span>
+                  </div>
+                </div>
+              );
+            }
 
             return (
-              <div key={group.id} className="mb-1">
+              <div key={group.id}>
                 {/* Group Header — clickable to expand/collapse */}
                 <button
                   onClick={() => toggleGroup(group.id)}
-                  className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-semibold transition-all duration-200 ${
+                  className={`w-full flex items-center gap-2 px-3 py-2.5 rounded-lg text-xs font-semibold transition-all duration-200 ${
                     hasActiveItem
                       ? `${group.bgClass} ${group.colorClass}`
                       : 'text-muted-foreground hover:bg-accent/50'
@@ -1214,28 +1249,44 @@ export default function HomePage() {
                   style={{ transitionProperty: 'grid-template-rows, opacity' }}
                 >
                   <div className="overflow-hidden min-h-0">
-                    <div className="ps-4 pe-1 pt-0.5 space-y-0.5">
+                    <div className="ps-4 pe-1 pt-0.5 space-y-1">
                       {group.items.map((item) => {
                         const ItemIcon = item.icon;
                         const isActive = activeTab === item.id;
+                        const isSpecial = 'isSpecial' in item && item.isSpecial;
                         return (
                           <button
                             key={item.id}
                             onClick={() => {
-                              setActiveTab(item.id);
+                              if (isSpecial) {
+                                // savedProjects — toggle projects panel
+                                setShowProjectsPanel(true);
+                                setAccordionOpen(true);
+                              } else {
+                                setActiveTab(item.id);
+                              }
                               onAfterSelect?.();
                             }}
-                            className={`relative w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-[13px] transition-all duration-200 group ${
-                              isActive
-                                ? `${group.bgClass} ${group.colorClass} font-semibold shadow-sm`
+                            className={`relative w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-[13px] transition-all duration-200 group ${
+                              isActive && !isSpecial
+                                ? `bg-emerald-500/10 ${group.colorClass} font-semibold shadow-sm shadow-emerald-500/5`
+                                : isSpecial
+                                ? 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
                                 : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
                             }`}
                           >
-                            {/* Active indicator bar — 4px on the start side */}
-                            {isActive && (
-                              <div className={`absolute top-1.5 bottom-1.5 ${isRTL ? 'right-0' : 'left-0'} w-1 rounded-full ${group.indicatorClass}`} />
+                            {/* Active indicator bar — 4px on the start side (RTL-aware) */}
+                            {isActive && !isSpecial && (
+                              <div className={`absolute top-1.5 bottom-1.5 ${isRTL ? 'right-0' : 'left-0'} w-1 rounded-full bg-emerald-500`} />
                             )}
-                            <ItemIcon className={`w-4 h-4 shrink-0 ${isActive ? group.colorClass : ''}`} />
+                            <ItemIcon
+                              className={`w-4 h-4 shrink-0 transition-all duration-200 ${
+                                isActive && !isSpecial
+                                  ? `${group.colorClass}`
+                                  : ''
+                              }`}
+                              {...(isActive && !isSpecial ? { fill: 'currentColor', fillOpacity: 0.15 } : {})}
+                            />
                             <span className="truncate">{item.label}</span>
                           </button>
                         );
@@ -1244,26 +1295,47 @@ export default function HomePage() {
                   </div>
                 </div>
 
-                {/* Separator between groups */}
-                <div className="my-1.5 mx-3 h-px bg-border/50" />
+                {/* Visible divider between groups */}
+                {groupIndex < sidebarGroups.length - 1 && (
+                  <div className="my-2 mx-3 h-px bg-border/40" />
+                )}
               </div>
             );
           })}
         </nav>
       </ScrollArea>
 
-      {/* Bottom User Section */}
+      {/* Bottom User Section — Enhanced */}
       <div className="border-t bg-card/80">
         {/* User Info */}
         <div className="p-3">
           <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-full bg-gradient-to-br from-emerald-500 to-teal-500 flex items-center justify-center text-white text-sm font-bold shadow-md">
+            {/* User Avatar */}
+            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-emerald-500 to-teal-500 flex items-center justify-center text-white text-sm font-bold shadow-md ring-2 ring-white/20">
               {user?.fullName?.charAt(0) || 'U'}
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium truncate">{user?.fullName}</p>
+              <p className="text-sm font-semibold truncate">{user?.fullName}</p>
               <p className="text-[11px] text-muted-foreground truncate">@{user?.username}</p>
             </div>
+          </div>
+          {/* Quick Links */}
+          <div className="flex items-center gap-1 mt-2">
+            <button
+              onClick={() => { setActiveTab('settings'); onAfterSelect?.(); }}
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-[11px] text-muted-foreground hover:text-foreground hover:bg-accent transition-all duration-200"
+            >
+              <Settings className="w-3.5 h-3.5" />
+              <span>{t.settings}</span>
+            </button>
+            <button
+              onClick={() => { setActiveTab('about'); onAfterSelect?.(); }}
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-[11px] text-muted-foreground hover:text-foreground hover:bg-accent transition-all duration-200"
+            >
+              <AppWindow className="w-3.5 h-3.5" />
+              <span>{t.about}</span>
+            </button>
+            <div className="flex-1" />
             <Button
               variant="ghost"
               size="icon"
@@ -1397,21 +1469,15 @@ export default function HomePage() {
           {renderSidebarContent()}
         </aside>
 
-        {/* Mobile Sidebar Overlay */}
-        {sidebarOpen && (
-          <div
-            className="no-print fixed inset-0 z-40 bg-black/50 backdrop-blur-sm lg:hidden"
-            onClick={() => setSidebarOpen(false)}
-          >
-            <aside
-              className="w-[280px] h-full bg-card border-e overflow-hidden shadow-2xl flex flex-col"
-              dir={isRTL ? 'rtl' : 'ltr'}
-              onClick={(e) => e.stopPropagation()}
-            >
-              {renderSidebarContent(() => setSidebarOpen(false))}
-            </aside>
-          </div>
-        )}
+        {/* Mobile Sidebar — Sheet Component */}
+        <Sheet open={sidebarOpen} onOpenChange={setSidebarOpen}>
+          <SheetContent side={isRTL ? 'right' : 'left'} className="w-[280px] p-0 overflow-hidden flex flex-col" dir={isRTL ? 'rtl' : 'ltr'}>
+            <SheetHeader className="sr-only">
+              <SheetTitle>Navigation</SheetTitle>
+            </SheetHeader>
+            {renderSidebarContent(() => setSidebarOpen(false))}
+          </SheetContent>
+        </Sheet>
 
         {/* Main Content */}
         <main className="flex-1 overflow-y-auto">
@@ -1462,50 +1528,60 @@ export default function HomePage() {
           {/* المشاريع */}
           <button
             onClick={() => setShowProjectsPanel(true)}
-            className={`flex flex-col items-center gap-0.5 py-1 px-3 rounded-lg transition-all duration-200 ${
-              false ? 'text-emerald-600 bg-emerald-500/10' : 'text-muted-foreground hover:text-foreground'
-            }`}
-          >
-            <Building2 className="w-5 h-5" />
-            <span className="text-[10px] font-medium">{t.projects}</span>
-          </button>
-
-          {/* التقييم الإنشائي */}
-          <button
-            onClick={() => setActiveTab('structuralReport')}
-            className={`flex flex-col items-center gap-0.5 py-1 px-3 rounded-lg transition-all duration-200 ${
-              ['structuralReport', 'foundations', 'columnsWalls', 'beamSlab'].includes(activeTab)
-                ? 'text-blue-600 dark:text-blue-400 bg-blue-500/10'
+            className={`flex flex-col items-center gap-0.5 py-1.5 px-3 rounded-xl transition-all duration-200 ${
+              false
+                ? 'text-emerald-600 dark:text-emerald-400 bg-gradient-to-br from-emerald-500/15 to-teal-500/10'
                 : 'text-muted-foreground hover:text-foreground'
             }`}
           >
-            <Hammer className="w-5 h-5" />
-            <span className="text-[10px] font-medium">{t.groupStructuralEval}</span>
+            <div className="p-1 rounded-lg">
+              <FolderOpen className="w-5 h-5" />
+            </div>
+            <span className="text-[10px] font-medium">{t.projects}</span>
+          </button>
+
+          {/* التقرير الإنشائي */}
+          <button
+            onClick={() => setActiveTab('structuralReport')}
+            className={`flex flex-col items-center gap-0.5 py-1.5 px-3 rounded-xl transition-all duration-200 ${
+              ['structuralReport', 'foundations', 'columnsWalls', 'beamSlab', 'technicalObservations', 'finalReport'].includes(activeTab)
+                ? 'text-[#5B8DB8] dark:text-[#7BAED4] bg-gradient-to-br from-[#5B8DB8]/15 to-[#5B8DB8]/5'
+                : 'text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            <div className="p-1 rounded-lg">
+              <Building2 className="w-5 h-5" />
+            </div>
+            <span className="text-[10px] font-medium">{t.groupStructural}</span>
           </button>
 
           {/* توليد التقارير */}
           <button
             onClick={() => setActiveTab('pdfExport')}
-            className={`flex flex-col items-center gap-0.5 py-1 px-3 rounded-lg transition-all duration-200 ${
+            className={`flex flex-col items-center gap-0.5 py-1.5 px-3 rounded-xl transition-all duration-200 ${
               activeTab === 'pdfExport'
-                ? 'text-violet-600 dark:text-violet-400 bg-violet-500/10'
+                ? 'text-[#8B7EC8] dark:text-[#A99BE0] bg-gradient-to-br from-[#8B7EC8]/15 to-[#8B7EC8]/5'
                 : 'text-muted-foreground hover:text-foreground'
             }`}
           >
-            <FileDown className="w-5 h-5" />
+            <div className="p-1 rounded-lg">
+              <ClipboardList className="w-5 h-5" />
+            </div>
             <span className="text-[10px] font-medium">{t.pdfExport}</span>
           </button>
 
           {/* عام */}
           <button
             onClick={() => setActiveTab('settings')}
-            className={`flex flex-col items-center gap-0.5 py-1 px-3 rounded-lg transition-all duration-200 ${
+            className={`flex flex-col items-center gap-0.5 py-1.5 px-3 rounded-xl transition-all duration-200 ${
               ['settings', 'about'].includes(activeTab)
-                ? 'text-slate-600 dark:text-slate-400 bg-slate-500/10'
+                ? 'text-[#8B8FA3] dark:text-[#A0A4B8] bg-gradient-to-br from-[#8B8FA3]/15 to-[#8B8FA3]/5'
                 : 'text-muted-foreground hover:text-foreground'
             }`}
           >
-            <Settings className="w-5 h-5" />
+            <div className="p-1 rounded-lg">
+              <Settings className="w-5 h-5" />
+            </div>
             <span className="text-[10px] font-medium">{t.groupGeneral}</span>
           </button>
         </div>

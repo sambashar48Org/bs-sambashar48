@@ -67,8 +67,10 @@ export const translations = {
     pdfExport: 'توليد التقارير',
 
     // Sidebar Groups
+    savedProjects: 'المشاريع المحفوظة',
     groupProjectData: 'بيانات المشروع',
     groupArchitectural: 'التقرير المعماري',
+    groupStructural: 'التقرير الإنشائي',
     groupStructuralEval: 'التقييم الإنشائي',
     groupElectrical: 'الكهربائي',
     groupPlumbing: 'الصحي',
@@ -234,8 +236,10 @@ export const translations = {
     pdfExport: 'Report Generation',
 
     // Sidebar Groups
+    savedProjects: 'Saved Projects',
     groupProjectData: 'Project Data',
-    groupArchitectural: 'Architectural',
+    groupArchitectural: 'Architectural Report',
+    groupStructural: 'Structural Report',
     groupStructuralEval: 'Structural Evaluation',
     groupElectrical: 'Electrical',
     groupPlumbing: 'Plumbing',

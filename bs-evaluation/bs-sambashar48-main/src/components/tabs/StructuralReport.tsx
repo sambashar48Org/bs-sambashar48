@@ -452,31 +452,25 @@ export default function StructuralReport({ data, onSave }: StructuralReportProps
           {/* fc input */}
           <div className="space-y-2">
             <Label className="text-sm font-medium text-foreground/80">
-              المقاومة الاسطوانية المميزة f&#39;c
+              المقاومة الاسطوانية المميزة f&#39;c (كغ/سم²)
             </Label>
-            <div className="relative">
-              <Input
-                type="number"
-                value={reportData.hammerTest.fc || ''}
-                onChange={(e) =>
-                  setReportData((prev) => ({
-                    ...prev,
-                    hammerTest: {
-                      ...prev.hammerTest,
-                      fc: e.target.value === '' ? 0 : Number(e.target.value),
-                    },
-                  }))
-                }
-                disabled={!isEditing}
-                placeholder="0"
-                className="w-full pe-20"
-                dir="ltr"
-                min={0}
-              />
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground bg-muted px-1.5 py-0.5 rounded pointer-events-none">
-                كغ/سم²
-              </span>
-            </div>
+            <Input
+              type="number"
+              value={reportData.hammerTest.fc || ''}
+              onChange={(e) =>
+                setReportData((prev) => ({
+                  ...prev,
+                  hammerTest: {
+                    ...prev.hammerTest,
+                    fc: e.target.value === '' ? 0 : Number(e.target.value),
+                  },
+                }))
+              }
+              disabled={!isEditing}
+              placeholder="0"
+              dir="ltr"
+              min={0}
+            />
             <p className="text-[10px] text-gray-400">
               القيمة المرجعية المستخدمة في حسابات الأساسات والأعمدة والجوائز
             </p>
@@ -562,117 +556,93 @@ export default function StructuralReport({ data, onSave }: StructuralReportProps
 
             {/* Foundation Depth */}
             <div className="space-y-2">
-              <Label className="text-sm font-medium text-foreground/80">عمق التأسيس</Label>
-              <div className="relative">
-                <Input
-                  type="number"
-                  value={reportData.soilReport.foundationDepth || ''}
-                  onChange={(e) =>
-                    setReportData((prev) => ({
-                      ...prev,
-                      soilReport: {
-                        ...prev.soilReport,
-                        foundationDepth: e.target.value === '' ? 0 : Number(e.target.value),
-                      },
-                    }))
-                  }
-                  disabled={!isEditing}
-                  placeholder="0"
-                  className="w-full pe-10"
-                  dir="ltr"
-                  min={0}
-                  step={0.1}
-                />
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground bg-muted px-1.5 py-0.5 rounded pointer-events-none">
-                  m
-                </span>
-              </div>
+              <Label className="text-sm font-medium text-foreground/80">عمق التأسيس (م)</Label>
+              <Input
+                type="number"
+                value={reportData.soilReport.foundationDepth || ''}
+                onChange={(e) =>
+                  setReportData((prev) => ({
+                    ...prev,
+                    soilReport: {
+                      ...prev.soilReport,
+                      foundationDepth: e.target.value === '' ? 0 : Number(e.target.value),
+                    },
+                  }))
+                }
+                disabled={!isEditing}
+                placeholder="0"
+                dir="ltr"
+                min={0}
+                step={0.1}
+              />
             </div>
 
             {/* Allowable Bearing */}
             <div className="space-y-2">
-              <Label className="text-sm font-medium text-foreground/80">تحمل التربة المسموح به</Label>
-              <div className="relative">
-                <Input
-                  type="number"
-                  value={reportData.soilReport.allowableBearing || ''}
-                  onChange={(e) =>
-                    setReportData((prev) => ({
-                      ...prev,
-                      soilReport: {
-                        ...prev.soilReport,
-                        allowableBearing: e.target.value === '' ? 0 : Number(e.target.value),
-                      },
-                    }))
-                  }
-                  disabled={!isEditing}
-                  placeholder="0"
-                  className="w-full pe-16"
-                  dir="ltr"
-                  min={0}
-                />
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground bg-muted px-1.5 py-0.5 rounded pointer-events-none">
-                  كغ/سم²
-                </span>
-              </div>
+              <Label className="text-sm font-medium text-foreground/80">تحمل التربة المسموح به (كغ/سم²)</Label>
+              <Input
+                type="number"
+                value={reportData.soilReport.allowableBearing || ''}
+                onChange={(e) =>
+                  setReportData((prev) => ({
+                    ...prev,
+                    soilReport: {
+                      ...prev.soilReport,
+                      allowableBearing: e.target.value === '' ? 0 : Number(e.target.value),
+                    },
+                  }))
+                }
+                disabled={!isEditing}
+                placeholder="0"
+                dir="ltr"
+                min={0}
+              />
             </div>
 
             {/* Friction Angle */}
             <div className="space-y-2">
-              <Label className="text-sm font-medium text-foreground/80">زاوية احتكاك التربة</Label>
-              <div className="relative">
-                <Input
-                  type="number"
-                  value={reportData.soilReport.frictionAngle || ''}
-                  onChange={(e) =>
-                    setReportData((prev) => ({
-                      ...prev,
-                      soilReport: {
-                        ...prev.soilReport,
-                        frictionAngle: e.target.value === '' ? 0 : Number(e.target.value),
-                      },
-                    }))
-                  }
-                  disabled={!isEditing}
-                  placeholder="0"
-                  className="w-full pe-10"
-                  dir="ltr"
-                  min={0}
-                  max={90}
-                />
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground bg-muted px-1.5 py-0.5 rounded pointer-events-none">
-                  deg
-                </span>
-              </div>
+              <Label className="text-sm font-medium text-foreground/80">زاوية احتكاك التربة (درجة)</Label>
+              <Input
+                type="number"
+                value={reportData.soilReport.frictionAngle || ''}
+                onChange={(e) =>
+                  setReportData((prev) => ({
+                    ...prev,
+                    soilReport: {
+                      ...prev.soilReport,
+                      frictionAngle: e.target.value === '' ? 0 : Number(e.target.value),
+                    },
+                  }))
+                }
+                disabled={!isEditing}
+                placeholder="0"
+                dir="ltr"
+                min={0}
+                max={90}
+              />
             </div>
 
             {/* Water Table Level */}
             <div className="space-y-2">
-              <Label className="text-sm font-medium text-foreground/80">منسوب المياه الجوفية</Label>
-              <div className="relative">
-                <Input
-                  type="number"
-                  value={reportData.soilReport.waterTableLevel || ''}
-                  onChange={(e) =>
-                    setReportData((prev) => ({
-                      ...prev,
-                      soilReport: {
-                        ...prev.soilReport,
-                        waterTableLevel: e.target.value === '' ? 0 : Number(e.target.value),
-                      },
-                    }))
-                  }
-                  disabled={!isEditing}
-                  placeholder="0"
-                  className="w-full pe-10"
-                  dir="ltr"
-                  min={0}
-                  step={0.1}
-                />
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground bg-muted px-1.5 py-0.5 rounded pointer-events-none">
-                  m
-                </span>
-              </div>
+              <Label className="text-sm font-medium text-foreground/80">منسوب المياه الجوفية (م)</Label>
+              <Input
+                type="number"
+                value={reportData.soilReport.waterTableLevel || ''}
+                onChange={(e) =>
+                  setReportData((prev) => ({
+                    ...prev,
+                    soilReport: {
+                      ...prev.soilReport,
+                      waterTableLevel: e.target.value === '' ? 0 : Number(e.target.value),
+                    },
+                  }))
+                }
+                disabled={!isEditing}
+                placeholder="0"
+                dir="ltr"
+                min={0}
+                step={0.1}
+              />
             </div>
           </div>
 
