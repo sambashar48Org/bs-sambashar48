@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -10,6 +10,13 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Separator } from '@/components/ui/separator';
 import { useTranslation } from '@/lib/i18n';
 import { useProjectStore } from '@/stores';
+import {
+  loadArabicFont,
+  downloadPDF,
+  isFontLoaded,
+  type PDFSection,
+  type PDFReportConfig,
+} from '@/lib/pdf-report';
 import {
   FileOutput,
   Printer,
@@ -27,6 +34,9 @@ import {
   ClipboardList,
   FileText,
   Eye,
+  Loader2,
+  CheckCircle2,
+  AlertCircle,
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -69,6 +79,12 @@ export default function GenerateReports({ projectData }: GenerateReportsProps) {
   const [reportFooter, setReportFooter] = useState(reportPreferences.reportFooter);
   const [selectedSections, setSelectedSections] = useState<string[]>(reportPreferences.selectedSections);
 
+  // PDF generation state
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [fontLoading, setFontLoading] = useState(false);
+  const [generationProgress, setGenerationProgress] = useState<string>('');
+  const abortRef = useRef(false);
+
   // Auto-save preferences on change
   React.useEffect(() => {
     const timer = setTimeout(() => {
@@ -81,6 +97,19 @@ export default function GenerateReports({ projectData }: GenerateReportsProps) {
     }, 300);
     return () => clearTimeout(timer);
   }, [companyName, reportHeader, reportFooter, selectedSections, setReportPreferences]);
+
+  // Preload font on mount
+  useEffect(() => {
+    if (!isFontLoaded()) {
+      setFontLoading(true);
+      loadArabicFont().then((ok) => {
+        setFontLoading(false);
+        if (!ok) {
+          console.warn('[GenerateReports] Arabic font preload failed — will retry on download');
+        }
+      });
+    }
+  }, []);
 
   // Toggle section selection
   const toggleSection = useCallback((sectionId: string) => {
@@ -110,7 +139,31 @@ export default function GenerateReports({ projectData }: GenerateReportsProps) {
     [projectData]
   );
 
-  // Print preview
+  // Build PDF config from selected sections
+  const buildPDFConfig = useCallback((): PDFReportConfig => {
+    const sections: PDFSection[] = selectedSections
+      .map((id, idx) => {
+        const opt = SECTION_OPTIONS.find((s) => s.id === id);
+        if (!opt) return null;
+        return {
+          id: opt.id,
+          label: opt.label,
+          dataKey: opt.dataKey,
+          number: idx + 1,
+        };
+      })
+      .filter(Boolean) as PDFSection[];
+
+    return {
+      companyName,
+      reportHeader,
+      reportFooter,
+      sections,
+      projectData,
+    };
+  }, [selectedSections, companyName, reportHeader, reportFooter, projectData]);
+
+  // Print preview (browser native)
   const handlePrintPreview = useCallback(() => {
     if (selectedSections.length === 0) {
       toast.error('يرجى اختيار قسم واحد على الأقل');
@@ -119,19 +172,61 @@ export default function GenerateReports({ projectData }: GenerateReportsProps) {
     window.print();
   }, [selectedSections]);
 
-  // Download PDF (placeholder using window.print)
-  const handleDownloadPDF = useCallback(() => {
+  // Download PDF using @react-pdf/renderer
+  const handleDownloadPDF = useCallback(async () => {
     if (selectedSections.length === 0) {
       toast.error('يرجى اختيار قسم واحد على الأقل');
       return;
     }
-    // Placeholder: use window.print() as PDF generation method
-    // TODO: implement with @react-pdf/renderer
-    toast.info('يتم إنشاء ملف PDF... (استخدام معاينة الطباعة مؤقتاً)');
-    setTimeout(() => {
-      window.print();
-    }, 500);
-  }, [selectedSections]);
+
+    abortRef.current = false;
+    setIsGenerating(true);
+    setGenerationProgress('جاري تحميل الخط العربي...');
+
+    try {
+      // Step 1: Load Arabic font
+      if (!isFontLoaded()) {
+        setGenerationProgress('جاري تحميل الخط العربي...');
+        const fontOk = await loadArabicFont();
+        if (!fontOk) {
+          throw new Error('فشل تحميل الخط العربي — تأكد من اتصال الإنترنت وأعد المحاولة');
+        }
+      }
+
+      if (abortRef.current) return;
+
+      // Step 2: Build config
+      setGenerationProgress('جاري تجهيز بيانات التقرير...');
+      const config = buildPDFConfig();
+
+      // Small delay to let UI update
+      await new Promise((r) => setTimeout(r, 100));
+
+      if (abortRef.current) return;
+
+      // Step 3: Generate PDF
+      setGenerationProgress('جاري إنشاء ملف PDF...');
+      await downloadPDF(config);
+
+      if (abortRef.current) return;
+
+      // Success
+      setGenerationProgress('');
+      toast.success('تم إنشاء وتحميل ملف PDF بنجاح', {
+        icon: <CheckCircle2 className="h-4 w-4 text-emerald-600" />,
+      });
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'حدث خطأ غير متوقع أثناء إنشاء ملف PDF';
+      console.error('[GenerateReports] PDF generation failed:', err);
+      toast.error(message, {
+        icon: <AlertCircle className="h-4 w-4 text-red-600" />,
+        duration: 6000,
+      });
+    } finally {
+      setIsGenerating(false);
+      setGenerationProgress('');
+    }
+  }, [selectedSections, buildPDFConfig]);
 
   const labelClass = 'text-sm font-medium text-foreground/80';
   const helperClass = 'text-xs text-muted-foreground';
@@ -295,7 +390,7 @@ export default function GenerateReports({ projectData }: GenerateReportsProps) {
             {/* معاينة قبل الطباعة */}
             <Button
               onClick={handlePrintPreview}
-              disabled={selectedSections.length === 0}
+              disabled={selectedSections.length === 0 || isGenerating}
               className="h-auto py-4 flex flex-col items-center gap-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white shadow-md hover:shadow-lg transition-all duration-200 disabled:opacity-50 disabled:shadow-none"
             >
               <Eye className="h-6 w-6" />
@@ -306,17 +401,42 @@ export default function GenerateReports({ projectData }: GenerateReportsProps) {
             {/* تحميل ملف PDF */}
             <Button
               onClick={handleDownloadPDF}
-              disabled={selectedSections.length === 0}
+              disabled={selectedSections.length === 0 || isGenerating}
               variant="outline"
               className="h-auto py-4 flex flex-col items-center gap-2 border-emerald-300 text-emerald-700 hover:bg-emerald-50 hover:text-emerald-800 disabled:opacity-50 transition-all duration-200"
             >
-              <FileDown className="h-6 w-6" />
-              <span className="text-sm font-medium">تحميل ملف PDF</span>
-              <span className="text-[10px] text-muted-foreground">إنشاء وتحميل ملف PDF</span>
+              {isGenerating ? (
+                <>
+                  <Loader2 className="h-6 w-6 animate-spin" />
+                  <span className="text-sm font-medium">جاري الإنشاء...</span>
+                  <span className="text-[10px] text-muted-foreground">{generationProgress}</span>
+                </>
+              ) : (
+                <>
+                  <FileDown className="h-6 w-6" />
+                  <span className="text-sm font-medium">تحميل ملف PDF</span>
+                  <span className="text-[10px] text-muted-foreground">
+                    {fontLoading ? 'جاري تحميل الخط...' : 'إنشاء وتحميل ملف PDF'}
+                  </span>
+                </>
+              )}
             </Button>
           </div>
 
-          {selectedSections.length === 0 && (
+          {/* Progress indicator during generation */}
+          {isGenerating && generationProgress && (
+            <div className="mt-4 p-3 bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800 rounded-lg">
+              <div className="flex items-center gap-3">
+                <Loader2 className="h-4 w-4 animate-spin text-emerald-600" />
+                <span className="text-sm text-emerald-700 dark:text-emerald-400">{generationProgress}</span>
+              </div>
+              <div className="mt-2 w-full bg-emerald-200 dark:bg-emerald-900 rounded-full h-1.5">
+                <div className="bg-emerald-600 h-1.5 rounded-full animate-pulse" style={{ width: '60%' }} />
+              </div>
+            </div>
+          )}
+
+          {selectedSections.length === 0 && !isGenerating && (
             <p className="text-center text-sm text-muted-foreground mt-3">
               يرجى اختيار قسم واحد على الأقل من الأقسام أعلاه
             </p>

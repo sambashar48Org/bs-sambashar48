@@ -4,11 +4,19 @@
  *
  * Uses Cairo Arabic font, A4 layout, repeating header/footer,
  * wrap={false} for No-Split elements, and fixed margins.
+ *
+ * Features:
+ *  - Cover page with project info
+ *  - Table of contents
+ *  - Specialized section renderers for all report types
+ *  - Safety check results with badges
+ *  - Professional styling
  */
 
 import React from 'react';
 import {
   Document, Page, View, Text, StyleSheet, Font, pdf,
+  Link,
 } from '@react-pdf/renderer';
 import {
   checkSoilStress, checkColumnStress, checkSlabThickness,
@@ -75,7 +83,7 @@ export function isFontLoaded(): boolean {
 }
 
 // ===================================================================
-// LABEL MAPPERS (same as GenerateReports.tsx)
+// LABEL MAPPERS
 // ===================================================================
 
 const BUILDING_LABELS: Record<string, string> = {
@@ -92,6 +100,17 @@ const BUILDING_LABELS: Record<string, string> = {
   evaluationPurpose: 'غاية التقييم',
   siteDescription: 'وصف الموقع العام',
   generalNotes: 'ملاحظات عامة',
+};
+
+const ARCHITECTURAL_LABELS: Record<string, string> = {
+  description: 'الوصف المعماري العام',
+  generalNotes: 'ملاحظات معمارية عامة',
+  floorNumber: 'رقم الطابق',
+  floorUsage: 'استخدام الطابق',
+  floorArea: 'المساحة (م²)',
+  floorHeight: 'ارتفاع الطابق (م)',
+  floorCondition: 'حالة الطابق',
+  floorNotes: 'ملاحظات',
 };
 
 const STRUCTURAL_LABELS: Record<string, string> = {
@@ -179,6 +198,85 @@ const BEAM_TYPE_LABELS: Record<string, string> = {
   hidden: 'جائز مخفي',
 };
 
+// Electrical Report Labels
+const ELECTRICAL_LABELS: Record<string, string> = {
+  mainSupply: 'نوع التغذية الرئيسية',
+  mainPanelCondition: 'حالة اللوحة الرئيسية',
+  lightingCondition: 'حالة الإنارة',
+  hasLowCurrentSystem: 'يوجد منظومة تيار ضعيف',
+  lowCurrentSystems: 'أنظمة التيار الضعيف',
+  installationsDescription: 'وصف التمديدات الكهربائية',
+  observations: 'الملاحظات والمشاهدات',
+};
+
+const LOW_CURRENT_LABELS: Record<string, string> = {
+  'منظومة التحكم': 'منظومة التحكم',
+  'منظومة إنذار الحريق': 'منظومة إنذار الحريق',
+  'منظومة المراقبة والكاميرات': 'منظومة المراقبة والكاميرات',
+  'شبكات البيانات والاتصالات': 'شبكات البيانات والاتصالات',
+  'المراقبة الحرارية والذكية': 'المراقبة الحرارية والذكية',
+  'أخرى': 'أخرى',
+};
+
+// Plumbing Report Labels
+const PLUMBING_LABELS: Record<string, string> = {
+  mainSupply: 'مصدر التغذية الرئيسي',
+  saltWaterNetwork: 'شبكة المياه المالحة',
+  freshWaterNetwork: 'شبكة المياه العذبة',
+  hasLeakage: 'يوجد تسرب مياه',
+  leakageDescription: 'وصف التسرب',
+  notes: 'ملاحظات عامة',
+};
+
+// Technical Notes Labels
+const TECH_ARCHITECTURAL_LABELS: Record<string, string> = {
+  humidityMarks: 'علامات رطوبة',
+  visibleWaterLeakage: 'تسرب مياه مرئي',
+  poorVentilation: 'تهوية سيئة',
+  insulationCondition: 'حالة العزل',
+  exteriorCladding: 'الكساء الخارجي',
+};
+
+const TECH_STRUCTURAL_LABELS: Record<string, string> = {
+  visibleRebarCorrosion: 'صدأ حديد مرئي',
+  slabBeamSettlement: 'هوط في البلاطات/الجوائز',
+  columnWallTilt: 'ميلان في الأعمدة/الجدران',
+  concreteCoverSpalling: 'تشرخ غطاء خرساني',
+};
+
+const TECH_ELECTRICAL_LABELS: Record<string, string> = {
+  electricalInstallations: 'حالة التمديدات الكهربائية',
+  fireSuppression: 'منظومة إطفاء الحريق',
+  surveillanceSystem: 'منظومة المراقبة',
+};
+
+const TECH_PLUMBING_LABELS: Record<string, string> = {
+  plumbingInstallations: 'حالة التمديدات الصحية',
+};
+
+// Final Report Labels
+const FINAL_REPORT_LABELS: Record<string, string> = {
+  requirements: 'المتطلبات والاشتراطات',
+  overallEvaluation: 'التقييم العام',
+  reportPurpose: 'غاية التقرير',
+  reportPurposeDescription: 'وصف غاية التقرير',
+};
+
+const ENGINEER_LABELS: Record<string, string> = {
+  sequence: 'التسلسل',
+  discipline: 'الاختصاص',
+  name: 'اسم المهندس',
+  licenseNumber: 'رقم الإجازة',
+};
+
+const APPROVAL_LABELS: Record<string, string> = {
+  sequence: 'التسلسل',
+  role: 'الدور',
+  name: 'الاسم',
+  discipline: 'الاختصاص',
+  date: 'التاريخ',
+};
+
 const GENERIC_LABELS: Record<string, string> = {
   description: 'الوصف',
   notes: 'ملاحظات',
@@ -216,21 +314,23 @@ const GENERIC_LABELS: Record<string, string> = {
   discipline: 'الاختصاص',
   dateOfIssue: 'تاريخ الإصدار',
   stampNumber: 'رقم الختم',
+  location_description: 'وصف الموقع',
+  recommendations_text: 'التوصيات',
 };
 
 function guessLabel(key: string): string {
-  return GENERIC_LABELS[key] || key;
+  return GENERIC_LABELS[key] || ARCHITECTURAL_LABELS[key] || key;
 }
 
 // ===================================================================
-// SKIP KEYS (photos, binary data)
+// SKIP KEYS (photos, binary data, internal IDs)
 // ===================================================================
 
 const SKIP_KEYS = new Set([
   'sitePhotos', 'photos', 'image', 'base64', 'fileBase64',
   'hammerReportPhoto', 'soilReportFileBase64', 'soilReportFileName',
   'soilReportFileSize', 'additionalPhotos', 'structuralCrackPhotos',
-  'crackPhotos',
+  'crackPhotos', 'leakagePhotos', 'id',
 ]);
 
 function shouldSkip(key: string): boolean {
@@ -273,6 +373,12 @@ const C = {
   amberBorder: '#fcd34d',
   grayBg: '#f9fafb',
   grayBorder: '#e5e7eb',
+  blue: '#1d4ed8',
+  blueBg: '#dbeafe',
+  blueBorder: '#93c5fd',
+  purple: '#7c3aed',
+  purpleBg: '#ede9fe',
+  purpleBorder: '#c4b5fd',
 };
 
 // ===================================================================
@@ -286,8 +392,132 @@ const S = StyleSheet.create({
     fontSize: 9.5,
     color: C.text,
     size: 'A4',
-    // No padding — header/footer use fixed positioning
-    // Content area uses explicit padding
+  },
+
+  // ---- Cover Page ----
+  coverPage: {
+    fontFamily: 'Cairo',
+    fontSize: 9.5,
+    color: C.white,
+    size: 'A4',
+    backgroundColor: C.primaryDark,
+  },
+  coverContent: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 60,
+    paddingVertical: 80,
+  },
+  coverLogo: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: C.white,
+    marginBottom: 30,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  coverLogoText: {
+    fontSize: 28,
+    fontWeight: 700,
+    color: C.primaryDark,
+    textAlign: 'center',
+  },
+  coverTitle: {
+    fontSize: 22,
+    fontWeight: 700,
+    color: C.white,
+    textAlign: 'center',
+    marginBottom: 8,
+  },
+  coverSubtitle: {
+    fontSize: 14,
+    color: C.primaryLight,
+    textAlign: 'center',
+    marginBottom: 6,
+  },
+  coverCode: {
+    fontSize: 11,
+    color: '#a7f3d0',
+    textAlign: 'center',
+    marginBottom: 30,
+  },
+  coverDivider: {
+    width: 120,
+    height: 3,
+    backgroundColor: C.safe,
+    marginBottom: 30,
+  },
+  coverCompany: {
+    fontSize: 16,
+    fontWeight: 700,
+    color: C.white,
+    textAlign: 'center',
+    marginBottom: 15,
+  },
+  coverDate: {
+    fontSize: 11,
+    color: '#a7f3d0',
+    textAlign: 'center',
+    marginTop: 30,
+  },
+  coverCopyright: {
+    fontSize: 8,
+    color: '#6ee7b7',
+    textAlign: 'center',
+    marginTop: 15,
+  },
+
+  // ---- TOC Page ----
+  tocPage: {
+    fontFamily: 'Cairo',
+    fontSize: 9.5,
+    color: C.text,
+    size: 'A4',
+  },
+  tocContent: {
+    paddingTop: 100,
+    paddingBottom: 65,
+    paddingHorizontal: 50,
+  },
+  tocTitle: {
+    fontSize: 16,
+    fontWeight: 700,
+    color: C.primary,
+    textAlign: 'center',
+    marginBottom: 25,
+  },
+  tocItem: {
+    flexDirection: 'row-reverse',
+    alignItems: 'center',
+    paddingVertical: 7,
+    paddingHorizontal: 10,
+    borderBottomWidth: 0.5,
+    borderBottomColor: C.grayBorder,
+  },
+  tocItemAlt: {
+    flexDirection: 'row-reverse',
+    alignItems: 'center',
+    paddingVertical: 7,
+    paddingHorizontal: 10,
+    borderBottomWidth: 0.5,
+    borderBottomColor: C.grayBorder,
+    backgroundColor: C.grayBg,
+  },
+  tocNum: {
+    width: 24,
+    fontSize: 9,
+    fontWeight: 700,
+    color: C.primary,
+    textAlign: 'center',
+  },
+  tocLabel: {
+    flex: 1,
+    fontSize: 10,
+    color: C.text,
+    textAlign: 'right',
+    marginRight: 8,
   },
 
   // ---- Header (repeats every page) ----
@@ -296,40 +526,40 @@ const S = StyleSheet.create({
     top: 0,
     left: 0,
     right: 0,
-    paddingTop: 25,
-    paddingBottom: 12,
+    paddingTop: 20,
+    paddingBottom: 10,
     paddingHorizontal: 50,
     borderBottomWidth: 3,
     borderBottomColor: C.primaryDark,
     backgroundColor: C.white,
   },
   headerCompany: {
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: 700,
     color: C.primary,
     textAlign: 'center',
-    marginBottom: 3,
+    marginBottom: 2,
   },
   headerTitle: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: 700,
     color: C.text,
     textAlign: 'center',
     marginBottom: 1,
   },
   headerSubtitle: {
-    fontSize: 8.5,
+    fontSize: 7.5,
     color: C.textMuted,
     textAlign: 'center',
   },
   headerDate: {
-    fontSize: 7.5,
+    fontSize: 7,
     color: C.textLight,
     textAlign: 'center',
-    marginTop: 3,
+    marginTop: 2,
   },
   headerCustomText: {
-    fontSize: 8.5,
+    fontSize: 8,
     color: C.textMuted,
     textAlign: 'center',
     marginTop: 2,
@@ -342,14 +572,14 @@ const S = StyleSheet.create({
     left: 0,
     right: 0,
     paddingTop: 8,
-    paddingBottom: 20,
+    paddingBottom: 18,
     paddingHorizontal: 50,
     borderTopWidth: 2,
     borderTopColor: C.primary,
     backgroundColor: C.white,
   },
   footerText: {
-    fontSize: 7.5,
+    fontSize: 7,
     color: C.textMuted,
     textAlign: 'center',
   },
@@ -361,7 +591,7 @@ const S = StyleSheet.create({
   },
   footerPage: {
     position: 'absolute',
-    bottom: 20,
+    bottom: 18,
     left: 50,
     fontSize: 7.5,
     color: C.textLight,
@@ -369,8 +599,8 @@ const S = StyleSheet.create({
 
   // ---- Content Area ----
   content: {
-    paddingTop: 85,
-    paddingBottom: 65,
+    paddingTop: 80,
+    paddingBottom: 60,
     paddingHorizontal: 50,
   },
 
@@ -568,6 +798,99 @@ const S = StyleSheet.create({
   // ---- Flex row helper ----
   row: { flexDirection: 'row-reverse', alignItems: 'center' },
   rowCenter: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center' },
+
+  // ---- Text block for long text ----
+  textBlock: {
+    fontSize: 9,
+    color: C.text,
+    textAlign: 'right',
+    lineHeight: 1.5,
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    marginBottom: 6,
+  },
+
+  // ---- Colored info boxes for electrical/plumbing ----
+  blueInfoBox: {
+    padding: 8,
+    borderRadius: 3,
+    backgroundColor: C.blueBg,
+    borderWidth: 0.5,
+    borderColor: C.blueBorder,
+    marginBottom: 8,
+  },
+  blueInfoLabel: { fontSize: 9, color: C.blue, fontWeight: 700, textAlign: 'right' },
+  blueInfoValue: { fontSize: 9, color: C.blue, textAlign: 'right', marginTop: 2 },
+
+  purpleInfoBox: {
+    padding: 8,
+    borderRadius: 3,
+    backgroundColor: C.purpleBg,
+    borderWidth: 0.5,
+    borderColor: C.purpleBorder,
+    marginBottom: 8,
+  },
+  purpleInfoLabel: { fontSize: 9, color: C.purple, fontWeight: 700, textAlign: 'right' },
+  purpleInfoValue: { fontSize: 9, color: C.purple, textAlign: 'right', marginTop: 2 },
+
+  // ---- Evaluation badge ----
+  evalBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 3,
+    marginBottom: 8,
+  },
+  evalBadgeText: {
+    fontSize: 9,
+    fontWeight: 700,
+    textAlign: 'center',
+  },
+
+  // ---- Signature row ----
+  sigRow: {
+    flexDirection: 'row-reverse',
+    borderBottomWidth: 0.5,
+    borderBottomColor: C.grayBorder,
+    paddingVertical: 4,
+  },
+  sigRowAlt: {
+    flexDirection: 'row-reverse',
+    borderBottomWidth: 0.5,
+    borderBottomColor: C.grayBorder,
+    paddingVertical: 4,
+    backgroundColor: C.grayBg,
+  },
+  sigCell: {
+    flex: 1,
+    fontSize: 8,
+    paddingVertical: 3,
+    paddingHorizontal: 4,
+    textAlign: 'right',
+    borderLeftWidth: 0.5,
+    borderLeftColor: C.grayBorder,
+  },
+  sigHeader: {
+    flex: 1,
+    fontSize: 8,
+    fontWeight: 700,
+    paddingVertical: 4,
+    paddingHorizontal: 4,
+    textAlign: 'center',
+    color: C.white,
+    borderLeftWidth: 0.5,
+    borderLeftColor: C.primaryDark,
+  },
+  sigTable: {
+    borderWidth: 1,
+    borderColor: C.tableBorder,
+    borderRadius: 2,
+    marginBottom: 8,
+    overflow: 'hidden',
+  },
+  sigTableHead: {
+    backgroundColor: C.headerBg,
+    flexDirection: 'row-reverse',
+  },
 });
 
 // ===================================================================
@@ -712,6 +1035,12 @@ function Sep() {
   return <View style={S.sep} />;
 }
 
+/** Text block for long text content */
+function TextBlock({ children }: { children: string }) {
+  if (!children) return null;
+  return <Text style={S.textBlock}>{children}</Text>;
+}
+
 // ===================================================================
 // SECTION RENDERERS
 // ===================================================================
@@ -762,7 +1091,7 @@ function RenderArchitecturalReport({ data }: { data: Record<string, unknown> }) 
               {Object.entries(floor)
                 .filter(([k]) => !shouldSkip(k))
                 .map(([k, v], i) => (
-                  <KVRow key={k} label={guessLabel(k)} value={v as string | number} alt={i % 2 === 1} />
+                  <KVRow key={k} label={ARCHITECTURAL_LABELS[k] || guessLabel(k)} value={v as string | number} alt={i % 2 === 1} />
                 ))}
             </EntryCard>
           ))}
@@ -785,6 +1114,7 @@ function RenderStructuralReport({
   );
   const hammer = data.hammerTest as Record<string, unknown> | undefined;
   const soil = data.soilReport as Record<string, unknown> | undefined;
+  const cracks = Array.isArray(data.crackJustifications) ? data.crackJustifications as Record<string, unknown>[] : [];
 
   return (
     <View>
@@ -843,6 +1173,26 @@ function RenderStructuralReport({
                 />
               ))}
           </View>
+        </View>
+      )}
+
+      {cracks.length > 0 && (
+        <View>
+          <SubHeader number="3.3" title={`تشرخات إنشائية (${cracks.length} شق)`} />
+          {cracks.map((crack, idx) => {
+            const crackType = String(crack.type || crack.crackType || '');
+            const crackDesc = String(crack.description || crack.crackDescription || '');
+            const crackWidth = crack.width ? String(crack.width) : '';
+            const crackLocation = String(crack.location || '');
+            return (
+              <EntryCard key={idx} title={`شق #${idx + 1} ${crackType ? '— ' + crackType : ''}`}>
+                {crackType && <KVRow label="نوع التشرخ" value={crackType} />}
+                {crackLocation && <KVRow label="الموقع" value={crackLocation} alt />}
+                {crackWidth && <KVRow label="العرض (مم)" value={crackWidth} />}
+                {crackDesc && <KVRow label="الوصف" value={crackDesc} alt={!!crackWidth} />}
+              </EntryCard>
+            );
+          })}
         </View>
       )}
     </View>
@@ -1201,7 +1551,320 @@ function RenderBeamSlab({ data }: { data: Record<string, unknown> }) {
   );
 }
 
-/** Generic Section (electrical, plumbing, technical notes, final report) */
+/** 7. Electrical Report (Specialized) */
+function RenderElectricalReport({ data }: { data: Record<string, unknown> }) {
+  const mainSupply = String(data.mainSupply || '');
+  const mainPanel = String(data.mainPanelCondition || '');
+  const lighting = String(data.lightingCondition || '');
+  const hasLowCurrent = data.hasLowCurrentSystem === true;
+  const lowCurrentSystems = Array.isArray(data.lowCurrentSystems) ? data.lowCurrentSystems as string[] : [];
+  const installationsDesc = String(data.installationsDescription || '');
+  const observations = String(data.observations || '');
+
+  const hasAnyData = mainSupply || mainPanel || lighting || hasLowCurrent || installationsDesc || observations;
+
+  if (!hasAnyData) return <Text style={S.noData}>لا توجد بيانات متاحة</Text>;
+
+  return (
+    <View>
+      {/* Main info table */}
+      <View style={S.table}>
+        <ThRow />
+        {mainSupply && <KVRow label={ELECTRICAL_LABELS.mainSupply} value={mainSupply} />}
+        {mainPanel && <KVRow label={ELECTRICAL_LABELS.mainPanelCondition} value={mainPanel} alt />}
+        {lighting && <KVRow label={ELECTRICAL_LABELS.lightingCondition} value={lighting} />}
+        <KVRow label={ELECTRICAL_LABELS.hasLowCurrentSystem} value={hasLowCurrent} alt={!!lighting} />
+      </View>
+
+      {/* Low current systems */}
+      {hasLowCurrent && lowCurrentSystems.length > 0 && (
+        <View>
+          <SubHeader number="7.1" title={`أنظمة التيار الضعيف (${lowCurrentSystems.length} نظام)`} />
+          <View style={S.table}>
+            <ThRow />
+            {lowCurrentSystems.map((sys, i) => (
+              <KVRow key={i} label={`نظام #${i + 1}`} value={LOW_CURRENT_LABELS[sys] || sys} alt={i % 2 === 1} />
+            ))}
+          </View>
+        </View>
+      )}
+
+      {/* Installations description */}
+      {installationsDesc && (
+        <View>
+          <SubHeader number={hasLowCurrent ? "7.2" : "7.1"} title="وصف التمديدات الكهربائية" />
+          <TextBlock>{installationsDesc}</TextBlock>
+        </View>
+      )}
+
+      {/* Observations */}
+      {observations && (
+        <View style={S.blueInfoBox}>
+          <Text style={S.blueInfoLabel}>الملاحظات والمشاهدات</Text>
+          <Text style={S.blueInfoValue}>{observations}</Text>
+        </View>
+      )}
+    </View>
+  );
+}
+
+/** 8. Plumbing Report (Specialized) */
+function RenderPlumbingReport({ data }: { data: Record<string, unknown> }) {
+  const mainSupply = String(data.mainSupply || '');
+  const saltWater = String(data.saltWaterNetwork || '');
+  const freshWater = String(data.freshWaterNetwork || '');
+  const hasLeakage = data.hasLeakage === true;
+  const leakageDesc = String(data.leakageDescription || '');
+  const notes = String(data.notes || '');
+
+  const hasAnyData = mainSupply || saltWater || freshWater || hasLeakage || notes;
+
+  if (!hasAnyData) return <Text style={S.noData}>لا توجد بيانات متاحة</Text>;
+
+  return (
+    <View>
+      {/* Main info table */}
+      <View style={S.table}>
+        <ThRow />
+        {mainSupply && <KVRow label={PLUMBING_LABELS.mainSupply} value={mainSupply} />}
+        {saltWater && <KVRow label={PLUMBING_LABELS.saltWaterNetwork} value={saltWater} alt />}
+        {freshWater && <KVRow label={PLUMBING_LABELS.freshWaterNetwork} value={freshWater} />}
+        <KVRow label={PLUMBING_LABELS.hasLeakage} value={hasLeakage} alt={!!freshWater} />
+      </View>
+
+      {/* Leakage details */}
+      {hasLeakage && leakageDesc && (
+        <View>
+          <SubHeader number="8.1" title="تفاصيل التسرب" />
+          <View style={[S.infoBox, { backgroundColor: C.unsafeBg, borderColor: C.unsafeBorder }]}>
+            <Text style={[S.infoBoxLabel, { color: C.unsafe }]}>{PLUMBING_LABELS.leakageDescription}</Text>
+            <Text style={[S.infoBoxValue, { color: C.unsafe, textAlign: 'right', marginTop: 3 }]}>{leakageDesc}</Text>
+          </View>
+        </View>
+      )}
+
+      {/* Notes */}
+      {notes && (
+        <View style={S.purpleInfoBox}>
+          <Text style={S.purpleInfoLabel}>{PLUMBING_LABELS.notes}</Text>
+          <Text style={S.purpleInfoValue}>{notes}</Text>
+        </View>
+      )}
+    </View>
+  );
+}
+
+/** 9. Technical Notes (Specialized) */
+function RenderTechnicalNotes({ data }: { data: Record<string, unknown> }) {
+  const archNotes = data.architecturalNotes as Record<string, unknown> | undefined;
+  const structNotes = data.structuralNotes as Record<string, unknown> | undefined;
+  const elecNotes = data.electricalNotes as Record<string, unknown> | undefined;
+  const plumbNotes = data.plumbingNotes as Record<string, unknown> | undefined;
+  const location = String(data.location || '');
+  const recommendations = String(data.recommendations || '');
+
+  const hasAnyData = (archNotes && Object.keys(archNotes).length > 0)
+    || (structNotes && Object.keys(structNotes).length > 0)
+    || (elecNotes && Object.keys(elecNotes).length > 0)
+    || (plumbNotes && Object.keys(plumbNotes).length > 0)
+    || location || recommendations;
+
+  if (!hasAnyData) return <Text style={S.noData}>لا توجد بيانات متاحة</Text>;
+
+  let subIdx = 0;
+
+  return (
+    <View>
+      {location && (
+        <View style={S.infoBox}>
+          <Text style={S.infoBoxLabel}>الموقع</Text>
+          <Text style={[S.infoBoxValue, { textAlign: 'right' }]}>{location}</Text>
+        </View>
+      )}
+
+      {/* Architectural observations */}
+      {archNotes && typeof archNotes === 'object' && (
+        <View>
+          <SubHeader number={`9.${++subIdx}`} title="ملاحظات معمارية" />
+          <View style={S.table}>
+            <ThRow />
+            {Object.entries(archNotes)
+              .filter(([k, v]) => v && String(v).length > 0)
+              .map(([k, v], i) => (
+                <KVRow key={k} label={TECH_ARCHITECTURAL_LABELS[k] || guessLabel(k)} value={String(v)} alt={i % 2 === 1} />
+              ))}
+          </View>
+        </View>
+      )}
+
+      {/* Structural observations */}
+      {structNotes && typeof structNotes === 'object' && (
+        <View>
+          <SubHeader number={`9.${++subIdx}`} title="ملاحظات إنشائية" />
+          <View style={S.table}>
+            <ThRow />
+            {Object.entries(structNotes)
+              .filter(([k, v]) => v && String(v).length > 0)
+              .map(([k, v], i) => (
+                <KVRow key={k} label={TECH_STRUCTURAL_LABELS[k] || guessLabel(k)} value={String(v)} alt={i % 2 === 1} />
+              ))}
+          </View>
+        </View>
+      )}
+
+      {/* Electrical observations */}
+      {elecNotes && typeof elecNotes === 'object' && (
+        <View>
+          <SubHeader number={`9.${++subIdx}`} title="ملاحظات كهربائية" />
+          <View style={S.table}>
+            <ThRow />
+            {Object.entries(elecNotes)
+              .filter(([k, v]) => v && String(v).length > 0)
+              .map(([k, v], i) => (
+                <KVRow key={k} label={TECH_ELECTRICAL_LABELS[k] || guessLabel(k)} value={String(v)} alt={i % 2 === 1} />
+              ))}
+          </View>
+        </View>
+      )}
+
+      {/* Plumbing observations */}
+      {plumbNotes && typeof plumbNotes === 'object' && (
+        <View>
+          <SubHeader number={`9.${++subIdx}`} title="ملاحظات صحية" />
+          <View style={S.table}>
+            <ThRow />
+            {Object.entries(plumbNotes)
+              .filter(([k, v]) => v && String(v).length > 0)
+              .map(([k, v], i) => (
+                <KVRow key={k} label={TECH_PLUMBING_LABELS[k] || guessLabel(k)} value={String(v)} alt={i % 2 === 1} />
+              ))}
+          </View>
+        </View>
+      )}
+
+      {/* Recommendations */}
+      {recommendations && (
+        <View style={[S.infoBox, { backgroundColor: C.amberBg, borderColor: C.amberBorder }]}>
+          <Text style={[S.infoBoxLabel, { color: C.amber }]}>التوصيات</Text>
+          <Text style={[S.infoBoxValue, { color: C.amber, textAlign: 'right', marginTop: 3 }]}>{recommendations}</Text>
+        </View>
+      )}
+    </View>
+  );
+}
+
+/** 10. Final Report (Specialized) */
+function RenderFinalReport({ data }: { data: Record<string, unknown> }) {
+  const requirements = String(data.requirements || '');
+  const overallEvaluation = String(data.overallEvaluation || '');
+  const reportPurpose = String(data.reportPurpose || '');
+  const reportPurposeDesc = String(data.reportPurposeDescription || '');
+  const engineers = Array.isArray(data.engineers) ? data.engineers as Record<string, unknown>[] : [];
+  const approvals = Array.isArray(data.approvals) ? data.approvals as Record<string, unknown>[] : [];
+
+  const hasAnyData = requirements || overallEvaluation || reportPurpose || engineers.length > 0 || approvals.length > 0;
+
+  if (!hasAnyData) return <Text style={S.noData}>لا توجد بيانات متاحة</Text>;
+
+  // Determine evaluation color
+  const getEvalColor = (evalText: string): { bg: string; border: string; text: string } => {
+    if (evalText.includes('آمن')) return { bg: C.safeBg, border: C.safeBorder, text: C.safe };
+    if (evalText.includes('خطر') || evalText.includes('غير آمن')) return { bg: C.unsafeBg, border: C.unsafeBorder, text: C.unsafe };
+    if (evalText.includes('ترميم') || evalText.includes('مراقبة')) return { bg: C.amberBg, border: C.amberBorder, text: C.amber };
+    return { bg: C.blueBg, border: C.blueBorder, text: C.blue };
+  };
+
+  return (
+    <View>
+      {/* Report purpose */}
+      {(reportPurpose || reportPurposeDesc) && (
+        <View>
+          <SubHeader number="10.1" title="غاية التقرير" />
+          {reportPurpose && (
+            <View style={S.table}>
+              <ThRow />
+              <KVRow label={FINAL_REPORT_LABELS.reportPurpose} value={reportPurpose} />
+              {reportPurposeDesc && <KVRow label={FINAL_REPORT_LABELS.reportPurposeDescription} value={reportPurposeDesc} alt />}
+            </View>
+          )}
+        </View>
+      )}
+
+      {/* Requirements */}
+      {requirements && (
+        <View>
+          <SubHeader number="10.2" title="المتطلبات والاشتراطات" />
+          <TextBlock>{requirements}</TextBlock>
+        </View>
+      )}
+
+      {/* Overall evaluation */}
+      {overallEvaluation && (
+        <View>
+          <SubHeader number="10.3" title="التقييم العام" />
+          {(() => {
+            const ec = getEvalColor(overallEvaluation);
+            return (
+              <View style={[S.evalBadge, { backgroundColor: ec.bg, borderWidth: 1, borderColor: ec.border }]}>
+                <Text style={[S.evalBadgeText, { color: ec.text }]}>{overallEvaluation}</Text>
+              </View>
+            );
+          })()}
+        </View>
+      )}
+
+      {/* Engineers table */}
+      {engineers.length > 0 && (
+        <View>
+          <SubHeader number="10.4" title={`المهندسون (${engineers.length} مهندس)`} />
+          <View style={S.sigTable}>
+            <View style={S.sigTableHead}>
+              <Text style={S.sigHeader}>التسلسل</Text>
+              <Text style={S.sigHeader}>الاختصاص</Text>
+              <Text style={S.sigHeader}>اسم المهندس</Text>
+              <Text style={S.sigHeader}>رقم الإجازة</Text>
+            </View>
+            {engineers.map((eng, i) => (
+              <View key={String(eng.id || i)} style={i % 2 === 1 ? S.sigRowAlt : S.sigRow}>
+                <Text style={S.sigCell}>{String(eng.sequence || i + 1)}</Text>
+                <Text style={S.sigCell}>{String(eng.discipline || '')}</Text>
+                <Text style={S.sigCell}>{String(eng.name || '')}</Text>
+                <Text style={S.sigCell}>{String(eng.licenseNumber || '')}</Text>
+              </View>
+            ))}
+          </View>
+        </View>
+      )}
+
+      {/* Approvals table */}
+      {approvals.length > 0 && (
+        <View>
+          <SubHeader number="10.5" title={`المعتمدون (${approvals.length} معتمد)`} />
+          <View style={S.sigTable}>
+            <View style={S.sigTableHead}>
+              <Text style={S.sigHeader}>التسلسل</Text>
+              <Text style={S.sigHeader}>الدور</Text>
+              <Text style={S.sigHeader}>الاسم</Text>
+              <Text style={S.sigHeader}>الاختصاص</Text>
+              <Text style={S.sigHeader}>التاريخ</Text>
+            </View>
+            {approvals.map((app, i) => (
+              <View key={String(app.id || i)} style={i % 2 === 1 ? S.sigRowAlt : S.sigRow}>
+                <Text style={S.sigCell}>{String(app.sequence || i + 1)}</Text>
+                <Text style={S.sigCell}>{String(app.role || '')}</Text>
+                <Text style={S.sigCell}>{String(app.name || '')}</Text>
+                <Text style={S.sigCell}>{String(app.discipline || '')}</Text>
+                <Text style={S.sigCell}>{String(app.date || '')}</Text>
+              </View>
+            ))}
+          </View>
+        </View>
+      )}
+    </View>
+  );
+}
+
+/** Generic Section fallback */
 function RenderGenericSection({ data }: { data: Record<string, unknown> }) {
   if (!data || Object.keys(data).length === 0) {
     return <Text style={S.noData}>لا توجد بيانات متاحة</Text>;
@@ -1239,6 +1902,14 @@ function RenderSection({
         return <RenderColumnsWalls data={data} projectData={projectData} />;
       case 'beamSlab':
         return <RenderBeamSlab data={data} />;
+      case 'electricalReport':
+        return <RenderElectricalReport data={data} />;
+      case 'plumbingReport':
+        return <RenderPlumbingReport data={data} />;
+      case 'technicalNotes':
+        return <RenderTechnicalNotes data={data} />;
+      case 'finalReport':
+        return <RenderFinalReport data={data} />;
       default:
         return <RenderGenericSection data={data} />;
     }
@@ -1270,8 +1941,81 @@ export function BSReportDocument({ config }: { config: PDFReportConfig }) {
 
   return (
     <Document>
+      {/* ===== Cover Page ===== */}
+      <Page size="A4" style={S.coverPage}>
+        <View style={S.coverContent}>
+          {/* Logo */}
+          <View style={S.coverLogo}>
+            <Text style={S.coverLogoText}>BS</Text>
+          </View>
+
+          {/* Title */}
+          <Text style={S.coverTitle}>تقرير تقييم المباني الخرسانية المسلحة</Text>
+          <Text style={S.coverSubtitle}>B.S Evaluation Report</Text>
+          <Text style={S.coverCode}>وفقاً للكود العربي السوري 2024 — الطريقة الكلاسيكية التشغيلية</Text>
+
+          {/* Divider */}
+          <View style={S.coverDivider} />
+
+          {/* Company name */}
+          {companyName && (
+            <Text style={S.coverCompany}>{companyName}</Text>
+          )}
+
+          {/* Building owner if available */}
+          {(() => {
+            const bd = projectData.building_data as Record<string, unknown> | undefined;
+            const owner = bd?.ownerName ? String(bd.ownerName) : '';
+            const usage = bd?.buildingUsage ? String(bd.buildingUsage) : '';
+            if (!owner && !usage) return null;
+            return (
+              <View style={{ marginTop: 10, alignItems: 'center' }}>
+                {owner && <Text style={{ fontSize: 12, color: C.white, textAlign: 'center' }}>مالك المنشأة: {owner}</Text>}
+                {usage && <Text style={{ fontSize: 10, color: C.primaryLight, textAlign: 'center', marginTop: 4 }}>استخدام المنشأة: {usage}</Text>}
+              </View>
+            );
+          })()}
+
+          {/* Date */}
+          <Text style={S.coverDate}>تاريخ التقرير: {dateStr}</Text>
+
+          {/* Copyright */}
+          <Text style={S.coverCopyright}>
+            المهندس الاستشاري: بشار السليمان — جميع الحقوق محفوظة © {new Date().getFullYear()}
+          </Text>
+        </View>
+      </Page>
+
+      {/* ===== Table of Contents ===== */}
+      <Page size="A4" style={S.tocPage}>
+        {/* Header */}
+        <View style={S.header} fixed>
+          {companyName && <Text style={S.headerCompany}>{companyName}</Text>}
+          <Text style={S.headerTitle}>تقرير تقييم المباني الخرسانية المسلحة</Text>
+          <Text style={S.headerSubtitle}>وفقاً للكود العربي السوري 2024</Text>
+        </View>
+
+        <View style={S.tocContent}>
+          <Text style={S.tocTitle}>فهرس المحتويات</Text>
+          {sections.map((section, i) => (
+            <View key={section.id} style={i % 2 === 1 ? S.tocItemAlt : S.tocItem}>
+              <Text style={S.tocNum}>{section.number}</Text>
+              <Text style={S.tocLabel}>{section.label}</Text>
+            </View>
+          ))}
+        </View>
+
+        {/* Footer */}
+        <View style={S.footer} fixed>
+          <Text style={S.footerText}>
+            تم إعداد هذا التقرير وفقاً للكود العربي السوري 2024
+          </Text>
+        </View>
+        <Text style={S.footerPage} render={({ pageNumber, totalPages }) => `${pageNumber} / ${totalPages}`} fixed />
+      </Page>
+
+      {/* ===== Content Pages ===== */}
       {sections.map((section, secIdx) => {
-        const isFirstPage = secIdx === 0;
         const isLastPage = secIdx === sections.length - 1;
 
         return (
