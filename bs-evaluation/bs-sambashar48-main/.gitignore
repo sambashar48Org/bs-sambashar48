@@ -48,3 +48,21 @@ download/
 
 # Bun
 bun.lock
+
+# Backups & Checkpoints
+backups/
+checkpoint-*/
+
+# Agent context
+agent-ctx/
+
+# Process logs
+nohup.out
+
+# Examples (dev only)
+examples/
+
+# Old/legacy files
+public/sw.js
+public/B.S-Evaluation.zip
+public/icon-512-resized.png
