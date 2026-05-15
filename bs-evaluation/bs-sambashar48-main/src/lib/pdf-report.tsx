@@ -1154,9 +1154,9 @@ function RenderBeamSlab({ data }: { data: Record<string, unknown> }) {
             if (flexRes) {
               resultRows.push(
                 { label: 'إجهاد الخرسانة الفعلي fc (كغ/سم²)', value: flexRes.fc.toFixed(2) },
-                { label: "إجهاد الخرسانة المسموح 0.45f'c (كغ/سم²)", value: flexRes.fcAllow.toFixed(2) },
+                { label: "إجهاد الخرسانة المسموح 0.4f'c (كغ/سم²)", value: flexRes.fcAllow.toFixed(2) },
                 { label: 'إجهاد الحديد الفعلي fs (كغ/سم²)', value: flexRes.fs.toFixed(2) },
-                { label: 'إجهاد الحديد المسموح 0.4fy (كغ/سم²)', value: flexRes.fsAllow.toFixed(2) },
+                { label: 'إجهاد الحديد المسموح 0.5fy (كغ/سم²)', value: flexRes.fsAllow.toFixed(2) },
               );
               if (flexRes.overReinforced) {
                 resultRows.push({ label: 'ملاحظة', value: 'تسليح زائد — يحتاج إعادة تصميم' });

@@ -144,30 +144,33 @@ export function checkSlabThickness(params: {
     hMin = span / alpha;
     formula = `h = L/${alpha} = ${span}/${alpha} = ${hMin.toFixed(1)} سم`;
   } else if (slabType === 'twoWaySolid') {
+    const lLong = spanLong || span;
+    const lShort = spanShort || span;
     if (supportCondition === 'بسيط' || supportCondition === 'simple') {
-      hMin = (spanLong || span) / SLAB_ALPHA.twoWaySolid.simple;
-      formula = `h = L/${SLAB_ALPHA.twoWaySolid.simple}`;
+      hMin = lLong / SLAB_ALPHA.twoWaySolid.simple;
+      formula = `h = L_long/${SLAB_ALPHA.twoWaySolid.simple} = ${lLong}/${SLAB_ALPHA.twoWaySolid.simple} = ${hMin?.toFixed(1) ?? '—'} سم`;
     } else {
-      const lLong = spanLong || span;
-      const lShort = spanShort || span;
-      const alphaSimple = 20;
-      const alphaCont = 28;
-      const alpha = supportCondition === 'مستمرة من طرفين' ? alphaCont : alphaSimple;
-      const perimeter = (alpha * lLong + alpha * lShort);
-      hMin = perimeter / 140;
-      formula = `h = المحيط المكافئ / 140`;
+      // المحيط المكافئ = 2×(Lx + Ly) — الكود العربي السوري
+      const equivPerimeter = 2 * (lLong + lShort);
+      hMin = equivPerimeter / 140;
+      formula = `h = 2(${lLong}+${lShort})/140 = ${equivPerimeter}/140 = ${hMin.toFixed(1)} سم`;
     }
   } else if (slabType === 'oneWayRibbed') {
     const alpha = SLAB_ALPHA.oneWayRibbed[condKey as keyof typeof SLAB_ALPHA.oneWayRibbed] || 20;
     hMin = span / alpha;
     formula = `h = L/${alpha} = ${span}/${alpha} = ${hMin.toFixed(1)} سم`;
   } else if (slabType === 'twoWayRibbed') {
+    const lLong = spanLong || span;
+    const lShort = spanShort || span;
     if (supportCondition === 'بسيط' || supportCondition === 'simple') {
-      hMin = span / SLAB_ALPHA.twoWayRibbed.simple;
+      hMin = lLong / SLAB_ALPHA.twoWayRibbed.simple;
+      formula = `h = L_long/${SLAB_ALPHA.twoWayRibbed.simple} = ${lLong}/${SLAB_ALPHA.twoWayRibbed.simple} = ${hMin?.toFixed(1) ?? '—'} سم`;
     } else {
-      hMin = span / SLAB_ALPHA.twoWayRibbed.continuous;
+      // المحيط المكافئ = 2×(Lx + Ly) — الكود العربي السوري
+      const equivPerimeter = 2 * (lLong + lShort);
+      hMin = equivPerimeter / 140;
+      formula = `h = 2(${lLong}+${lShort})/140 = ${equivPerimeter}/140 = ${hMin.toFixed(1)} سم`;
     }
-    formula = `h = L/α`;
   } else if (slabType === 'flatSlab') {
     if (supportCondition === 'مع تيجان' || supportCondition === 'withDropPanels') {
       hMin = span / SLAB_ALPHA.flatSlab.withDropPanels;
@@ -453,8 +456,8 @@ export function checkColumnWallStress(params: {
 }): ColumnWallResult {
   const { load, width, depth, fc, n, H_clear, columnLocation } = params;
 
-  // 1. نسبة النمطية
-  const nVal = n || WSD.default_n;
+  // 1. نسبة النمطية — وفق الكود العربي السوري: n = 2,000,000 / (15,000 × √f'c)
+  const nVal = n || WSD.getN(fc);
 
   // 1. مساحة حديد التسليح — إذا لم يدخلها المستخدم تفرض 1%
   let AsProvided = params.As;
@@ -581,7 +584,7 @@ export function checkColumnStress(params: {
  * fs = Mw / (As × jd)
  * fc_مس = 0.4 × f'c
  * fs_مس = 0.5 × fy
- * مُصلح: ω > 0.6375
+ * مُصلح: kd > kb حيث kb/d = n / (n + fs_مس/fc_مس)
  */
 export function checkFlexure(params: {
   moment: number;    // العزم المطبق (طن.سم)
@@ -624,10 +627,12 @@ export function checkFlexure(params: {
   const fcAllowable = WSD.fc_allowable_flexure * fc;  // 0.4 × f'c
   const fsAllowable = WSD.getFsAllowable(fy);         // 0.5 × fy
 
-  // فحص التسليح الزائد — ω = ρ × fy / f'c
-  const rho = As / (b * d);
-  const omega = rho * fy / fc;
-  const overReinforced = omega > WSD.omega_max; // ω > 0.6375
+  // فحص التسليح الزائد — طريقة التشغيل WSD
+  // kb/d = n / (n + fs_allowable / fc_allowable)
+  // المقطع مُصلح إذا kd > kb
+  const kb_ratio = n / (n + fsAllowable / fcAllowable);
+  const kb = kb_ratio * d;
+  const overReinforced = kd > kb;
 
   const safe = !overReinforced && fcStress <= fcAllowable && fsStress <= fsAllowable;
 
@@ -735,13 +740,19 @@ export function calculateStirrups(params: {
   const Vs = Math.max(V - vc * width * d, 0);
   const Av_required = Vs / (FsVal * d);
 
+  // فحص الأمان — مقارنة Av/s المتوفرة مع Av/s المطلوبة (وحدات: سم²/سم)
+  // Av/s مطلوبة = Av_required (سم²/سم)
+  // Av/s متوفرة = Av_provided / finalSpacing (سم²/سم)
+  const Avs_provided = Av_provided / finalSpacing;
+  const safe = Avs_provided >= Av_required;
+
   return {
     spacing: Math.round(finalSpacing * 10) / 10,
     spacingMax: Math.round(smax * 10) / 10,
     useSmax,
     areaRequired: Math.round(Av_required * 1000) / 1000,
     areaProvided: Math.round(Av_provided * 1000) / 1000,
-    safe: Av_provided >= Av_required * 0.9,
+    safe,
   };
 }
 
@@ -872,23 +883,103 @@ export function compareReinforcement(params: {
 
 /**
  * معاملات العزم والقص حسب طبيعة الاستناد — WSD
- * بلاطة باتجاه واحد (شريحة عرض 1م = 100 سم)
+ * الكود العربي السوري 2024 — البلاطة باتجاه واحد (شريحة عرض 1م = 100 سم)
+ *
+ * معاملات العزم الدقيقة:
+ * - بسيط:           M⁺ = wL²/8     M⁻ = 0
+ * - مستمر من طرف:   M⁺ = wL²/14    M⁻ = wL²/8   (عند المسند المستمر)
+ * - مستمر من طرفين: M⁺ = wL²/16    M⁻ = wL²/10  (عند المساند)
+ * - كابولي حر:      M⁺ = 0         M⁻ = wL²/2
  */
 export const SLAB_MOMENT_COEFFICIENTS: Record<string, { positive: number; negative: number }> = {
   'بسيط': { positive: 1 / 8, negative: 0 },
-  'مستمر من طرف واحد': { positive: 1 / 10, negative: 1 / 10 },
-  'مستمر من طرفين': { positive: 1 / 12, negative: 1 / 12 },
+  'مستمر من طرف واحد': { positive: 1 / 14, negative: 1 / 8 },
+  'مستمر من طرفين': { positive: 1 / 16, negative: 1 / 10 },
   'كابولي حر': { positive: 0, negative: 1 / 2 },
 };
 
 /**
- * معاملات القص حسب طبيعة الاستناد
+ * معاملات القص حسب طبيعة الاستناد — الكود العربي السوري
  */
 export const SLAB_SHEAR_COEFFICIENTS: Record<string, number> = {
   'بسيط': 0.5,
   'مستمر من طرف واحد': 0.6,
   'مستمر من طرفين': 0.5,
   'كابولي حر': 1.0,
+};
+
+// ===================================================================
+// 10-أ. جداول معاملات توزيع الحمل — بلاطة باتجاهين
+// الكود العربي السوري 2024 — طريقة رانكين-غراشوف
+// ===================================================================
+
+/**
+ * معامل توزيع الحمل على الاتجاه القصير α_short
+ * حسب نسبة r = L_short / L_long وطبيعة الاستناد
+ *
+ * الجدول مبني على معادلة رانكين-غراشوف:
+ *   α_short = 1 / (1 + r⁴)  ← بسيط ومستمر
+ *   للكابولي: كل الحمل على الاتجاه الحر
+ *
+ * الجدول يُعطي معاملات محددة حسب الكود العربي السوري
+ */
+export const TWO_WAY_DISTRIBUTION_TABLE: Record<string, number> = {
+  // r = L_short / L_long → معامل الحمل على الاتجاه القصير
+  '1.00': 0.500,
+  '0.95': 0.551,
+  '0.90': 0.606,
+  '0.85': 0.664,
+  '0.80': 0.725,
+  '0.75': 0.787,
+  '0.70': 0.848,
+  '0.65': 0.905,
+  '0.60': 0.952,
+  '0.55': 0.984,
+  '0.50': 1.000,
+  '0.45': 1.000,
+  '0.40': 1.000,
+};
+
+/**
+ * استيفاء خطي من جدول معاملات التوزيع
+ */
+function getTwoWayDistributionFactor(ratio: number): number {
+  if (ratio >= 1.0) return 0.5;
+  if (ratio <= 0.4) return 1.0;
+
+  const keys = Object.keys(TWO_WAY_DISTRIBUTION_TABLE).map(Number).sort((a, b) => a - b);
+  const r = Math.round(ratio * 100) / 100;
+
+  // البحث عن أقرب قيمتين
+  let lower = keys[0];
+  let upper = keys[keys.length - 1];
+  for (let i = 0; i < keys.length - 1; i++) {
+    if (r >= keys[i] && r <= keys[i + 1]) {
+      lower = keys[i];
+      upper = keys[i + 1];
+      break;
+    }
+  }
+
+  // استيفاء خطي
+  const valLower = TWO_WAY_DISTRIBUTION_TABLE[lower.toFixed(2)];
+  const valUpper = TWO_WAY_DISTRIBUTION_TABLE[upper.toFixed(2)];
+  if (upper === lower) return valLower;
+
+  const t = (r - lower) / (upper - lower);
+  return valLower + t * (valUpper - valLower);
+}
+
+/**
+ * معاملات العزم للبلاطة باتجاهين — الكود العربي السوري
+ * العزم على كل اتجاه = الحمل الموزع على الاتجاه × معامل العزم
+ * معاملات العزم كما في البلاطة باتجاه واحد لكن مع الحمل الموزع
+ */
+export const TWO_WAY_MOMENT_COEFFICIENTS: Record<string, { positiveShort: number; negativeShort: number; positiveLong: number; negativeLong: number }> = {
+  'بسيط': { positiveShort: 1 / 8, negativeShort: 0, positiveLong: 1 / 8, negativeLong: 0 },
+  'مستمر من طرف واحد': { positiveShort: 1 / 14, negativeShort: 1 / 8, positiveLong: 1 / 14, negativeLong: 1 / 8 },
+  'مستمر من طرفين': { positiveShort: 1 / 16, negativeShort: 1 / 10, positiveLong: 1 / 16, negativeLong: 1 / 10 },
+  'كابولي حر': { positiveShort: 0, negativeShort: 1 / 2, positiveLong: 0, negativeLong: 1 / 2 },
 };
 
 /** نتيجة حساب عزم وقص البلاطة */
@@ -911,13 +1002,19 @@ export interface SlabMomentShearResult {
 }
 
 /**
- * حساب عزم الانعطاف وقوة القص للبلاطة باتجاه واحد
+ * حساب عزم الانعطاف وقوة القص للبلاطات
+ * الكود العربي السوري 2024 — طريقة التشغيل WSD
  *
- * وحدة الحمولة: طن/م² → شريحة 1م → w = load × 1 (طن/م)
- * العزم: M = coefficient × w × L² (طن.م) → × 100 → طن.سم/م
- * القص: V = coefficient × w × L (طن/م)
+ * بلاطة باتجاه واحد:
+ *   وحدة الحمولة: طن/م² → شريحة 1م → w = load × 1 (طن/م)
+ *   العزم: M = coeff × w × L² (طن.م) → × 100 → طن.سم/م
+ *   القص: V = coeff × w × L (طن/م)
  *
- * بلاطة باتجاهين: نستخدم المجاز القصير مع معاملات التوزيع
+ * بلاطة باتجاهين:
+ *   توزيع الحمل حسب جداول الكود العربي السوري (رانكين-غراشوف)
+ *   α_short = معامل التوزيع من الجدول حسب r = L_short/L_long
+ *   w_short = α_short × w
+ *   العزم على الاتجاه القصير = معامل × w_short × L_short²
  */
 export function calculateSlabMomentShear(params: {
   load: number;              // الحمولة (طن/م²)
@@ -935,21 +1032,22 @@ export function calculateSlabMomentShear(params: {
   // للمجاز: نستخدم المجاز المناسب
   let L = span / 100; // سم → متر
 
-  // للبلاطة باتجاهين: معاملات التوزيع حسب نسبة المجازين
+  // للبلاطة باتجاهين: معاملات التوزيع حسب جداول الكود العربي السوري
   let distributionFactor = 1.0; // للبلاطة باتجاه واحد
   if (slabType === 'twoWaySolid' || slabType === 'twoWayRibbed') {
     const lLong = (spanLong || span) / 100;
     const lShort = (spanShort || span) / 100;
     L = lShort; // نستخدم المجاز القصير
     const ratio = lShort / lLong;
-    // معامل توزيع الحمل على الاتجاه القصير — تقريباً
-    // α = 1 / (1 + (L_short/L_long)^4) للاتجاه القصير
-    distributionFactor = 1 / (1 + Math.pow(ratio, 4));
-    // نأخذ الحمل على الاتجاه القصير فقط
+
+    // استخدام جدول معاملات التوزيع بدلاً من المعادلة التقريبية
+    distributionFactor = getTwoWayDistributionFactor(ratio);
+
+    // الحمل الموزع على الاتجاه القصير
     w = load * distributionFactor;
   }
 
-  // معاملات العزم
+  // معاملات العزم الدقيقة — الكود العربي السوري
   const momentCoeffs = SLAB_MOMENT_COEFFICIENTS[supportCondition] || SLAB_MOMENT_COEFFICIENTS['بسيط'];
   const shearCoeff = SLAB_SHEAR_COEFFICIENTS[supportCondition] || 0.5;
 

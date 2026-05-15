@@ -599,7 +599,7 @@ export default function BeamSlab({ data, onSave }: BeamSlabProps) {
           kd = flex.kd;
           jd = flex.jd;
           nVal = flex.n;
-          omega = As > 0 && d > 0 ? (As / (100 * d)) * fyVal / fcVal : 0;
+          omega = As > 0 && d > 0 ? (As / (100 * d)) * fyVal / fcVal : 0; // للعرض فقط — الفحص الفعلي بـ kd > kb
           hasFlexureResult = true;
         }
 
@@ -1422,14 +1422,14 @@ export default function BeamSlab({ data, onSave }: BeamSlabProps) {
                                 />
                                 <ResultRow
                                   icon={<Ruler className="h-4 w-4 text-muted-foreground" />}
-                                  label="نسبة التسليح ω"
-                                  value={`${result.omega.toFixed(4)}`}
-                                  safe={result.omega <= 0.6375}
+                                  label="نسبة التسليح ρ"
+                                  value={`${(As > 0 && d > 0 ? (As / (100 * d)) : 0).toFixed(4)}`}
+                                  safe={!result.overReinforced}
                                 />
                                 {result.overReinforced && (
                                   <div className="flex items-start gap-2 p-3 rounded-lg bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800">
                                     <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
-                                    <span className="text-xs text-amber-700 dark:text-amber-300">مقطع مُصلح (تسليح زائد — ω &gt; 0.6375)</span>
+                                    <span className="text-xs text-amber-700 dark:text-amber-300">مقطع مُصلح (kd &gt; kb — تسليح زائد وفق WSD)</span>
                                   </div>
                                 )}
                                 <StatusBanner
@@ -1877,14 +1877,14 @@ export default function BeamSlab({ data, onSave }: BeamSlabProps) {
                                 />
                                 <ResultRow
                                   icon={<Ruler className="h-4 w-4 text-muted-foreground" />}
-                                  label="نسبة التسليح ω"
+                                  label="نسبة التسليح ρ"
                                   value={`${result.omegaVal.toFixed(4)}`}
-                                  safe={result.omegaVal <= 0.6375}
+                                  safe={!result.overReinforced}
                                 />
                                 {result.overReinforced && (
                                   <div className="flex items-start gap-2 p-3 rounded-lg bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800">
                                     <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
-                                    <span className="text-xs text-amber-700 dark:text-amber-300">مقطع مُصلح (تسليح زائد — ω &gt; 0.6375)</span>
+                                    <span className="text-xs text-amber-700 dark:text-amber-300">مقطع مُصلح (kd &gt; kb — تسليح زائد وفق WSD)</span>
                                   </div>
                                 )}
                                 <StatusBanner
