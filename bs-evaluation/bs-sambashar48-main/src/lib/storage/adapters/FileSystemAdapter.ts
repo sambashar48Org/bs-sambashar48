@@ -95,13 +95,16 @@ export class FileSystemAdapter implements IFileSystemAdapter {
       throw new Error('لم يتم اختيار مجلد المشاريع بعد. يرجى اختيار مجلد أولاً.');
     }
 
-    const serialized = ProjectSerializer.serialize(project);
     const fileName = this.sanitizeFileName(project.name) + '.bsproj';
 
     try {
+      // استخدام الضغط الحقيقي (GZIP) عبر serializeToBlob
+      const blob = await ProjectSerializer.serializeToBlob(project);
+      const arrayBuffer = await blob.arrayBuffer();
+
       const fileHandle = await dirHandle.getFileHandle(fileName, { create: true });
       const writable = await fileHandle.createWritable();
-      await writable.write(serialized);
+      await writable.write(arrayBuffer);
       await writable.close();
     } catch (err) {
       throw new Error('فشل حفظ الملف. تأكد من أن المجلد متاح ولديك صلاحية الكتابة.');
@@ -118,14 +121,14 @@ export class FileSystemAdapter implements IFileSystemAdapter {
       const [fileHandle] = await window.showOpenFilePicker({
         types: [{
           description: 'ملفات B.S Evaluation',
-          accept: { 'application/json': ['.bsproj'] },
+          accept: { 'application/json': ['.bsproj'], 'application/octet-stream': ['.bsproj'] },
         }],
         multiple: false,
       });
 
       const file = await fileHandle.getFile();
-      const content = await file.text();
-      return ProjectSerializer.deserialize(content);
+      // استخدام deserializeFromBlob لدعم الملفات المضغوطة (GZIP) والنصية
+      return ProjectSerializer.deserializeFromBlob(file);
     } catch (err: unknown) {
       if (err instanceof Error && err.name === 'AbortError') return null;
       throw new Error('فشل استيراد الملف');
@@ -147,8 +150,8 @@ export class FileSystemAdapter implements IFileSystemAdapter {
         }
 
         try {
-          const content = await file.text();
-          const project = ProjectSerializer.deserialize(content);
+          // استخدام deserializeFromBlob لدعم الملفات المضغوطة والنصية
+          const project = await ProjectSerializer.deserializeFromBlob(file);
           resolve(project);
         } catch {
           reject(new Error('فشل قراءة الملف. تأكد من أنه ملف .bsproj صالح.'));
@@ -171,9 +174,8 @@ export class FileSystemAdapter implements IFileSystemAdapter {
       for await (const entry of dirHandle.values()) {
         if (entry.kind === 'file' && entry.name.endsWith('.bsproj')) {
           const file = await entry.getFile();
-          const content = await file.text();
           try {
-            const project = ProjectSerializer.deserialize(content);
+            const project = await ProjectSerializer.deserializeFromBlob(file);
             items.push({
               id: project.id,
               name: project.name,
@@ -209,8 +211,7 @@ export class FileSystemAdapter implements IFileSystemAdapter {
       for await (const entry of dirHandle.values()) {
         if (entry.kind === 'file' && entry.name.endsWith('.bsproj')) {
           const file = await entry.getFile();
-          const content = await file.text();
-          const project = ProjectSerializer.deserialize(content);
+          const project = await ProjectSerializer.deserializeFromBlob(file);
           if (project.id === projectId) return project;
         }
       }
@@ -229,8 +230,7 @@ export class FileSystemAdapter implements IFileSystemAdapter {
       for await (const entry of dirHandle.values()) {
         if (entry.kind === 'file' && entry.name.endsWith('.bsproj')) {
           const file = await entry.getFile();
-          const content = await file.text();
-          const project = ProjectSerializer.deserialize(content);
+          const project = await ProjectSerializer.deserializeFromBlob(file);
           if (project.id === projectId) {
             await dirHandle.removeEntry(entry.name);
             return;

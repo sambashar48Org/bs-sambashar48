@@ -38,7 +38,7 @@ export async function GET(
   }
 }
 
-/** POST — الموافقة على جهاز */
+/** POST — الموافقة على جهاز أو رفضه */
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -49,21 +49,25 @@ export async function POST(
       return NextResponse.json({ error: 'غير مصرح' }, { status: 401 });
     }
 
-    const { id } = await params;
+    const { id: userId } = await params;
     const body = await request.json();
-    const { action } = body; // 'approve' | 'reject'
+    const { action, deviceId } = body;
+
+    if (!deviceId) {
+      return NextResponse.json({ error: 'معرف الجهاز مطلوب' }, { status: 400 });
+    }
 
     if (action === 'approve') {
-      await approveDevice(id, admin.userId);
+      await approveDevice(deviceId, admin.userId);
       return NextResponse.json({ message: 'تمت الموافقة على الجهاز بنجاح' });
     }
 
     if (action === 'reject') {
-      await rejectDevice(id);
+      await rejectDevice(deviceId);
       return NextResponse.json({ message: 'تم رفض الجهاز' });
     }
 
-    return NextResponse.json({ error: 'إجراء غير صالح' }, { status: 400 });
+    return NextResponse.json({ error: 'إجراء غير صالح — استخدم approve أو reject' }, { status: 400 });
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : 'خطأ في الخادم';
     return NextResponse.json({ error: msg }, { status: 500 });
@@ -81,11 +85,19 @@ export async function PUT(
       return NextResponse.json({ error: 'غير مصرح' }, { status: 401 });
     }
 
-    const { id } = await params;
+    const { id: userId } = await params;
     const body = await request.json();
-    const { isActive } = body;
+    const { deviceId, isActive } = body;
 
-    await toggleDevice(id, isActive);
+    if (!deviceId) {
+      return NextResponse.json({ error: 'معرف الجهاز مطلوب' }, { status: 400 });
+    }
+
+    if (typeof isActive !== 'boolean') {
+      return NextResponse.json({ error: 'isActive يجب أن يكون true أو false' }, { status: 400 });
+    }
+
+    await toggleDevice(deviceId, isActive);
     return NextResponse.json({
       message: isActive ? 'تم تفعيل الجهاز' : 'تم تعطيل الجهاز',
     });
@@ -105,8 +117,24 @@ export async function DELETE(
       return NextResponse.json({ error: 'غير مصرح' }, { status: 401 });
     }
 
-    const { id } = await params;
-    await deleteDevice(id);
+    const { id: userId } = await params;
+
+    // محاولة قراءة deviceId من الجسم أو من معامل البحث
+    let deviceId: string | null = null;
+    try {
+      const body = await request.json();
+      deviceId = body.deviceId;
+    } catch {
+      // الجسم فارغ — نبحث في معاملات URL
+      const url = new URL(request.url);
+      deviceId = url.searchParams.get('deviceId');
+    }
+
+    if (!deviceId) {
+      return NextResponse.json({ error: 'معرف الجهاز مطلوب' }, { status: 400 });
+    }
+
+    await deleteDevice(deviceId);
     return NextResponse.json({ message: 'تم حذف الجهاز' });
   } catch {
     return NextResponse.json({ error: 'خطأ في الخادم' }, { status: 500 });
