@@ -1,0 +1,68 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Next.js
+.next/
+out/
+
+# Production
+build/
+dist/
+
+# Misc
+.DS_Store
+*.pem
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Debug
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# Vercel
+.vercel
+
+# TypeScript
+*.tsbuildinfo
+next-env.d.ts
+
+# Logs
+logs/
+*.log
+server.pid
+keep-alive.pid
+3000
+
+# Skills (not needed for deployment)
+skills/
+
+# Download
+download/
+
+# Bun
+bun.lock
+
+# Backups & Checkpoints
+backups/
+checkpoint-*/
+
+# Agent context
+agent-ctx/
+
+# Process logs
+nohup.out
+
+# Examples (dev only)
+examples/
+
+# Old/legacy files
+public/sw.js
+public/B.S-Evaluation.zip
+public/icon-512-resized.png
