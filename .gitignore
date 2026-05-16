@@ -66,3 +66,6 @@ examples/
 public/sw.js
 public/B.S-Evaluation.zip
 public/icon-512-resized.png
+
+# Local Netlify folder
+.netlify
