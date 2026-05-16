@@ -1,0 +1,35 @@
+{
+  "name": "B.S Evaluation",
+  "short_name": "B.S Eval",
+  "description": "تقييم فني للوضع الراهن للمباني الخرسانية المسلحة",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#ecfdf5",
+  "theme_color": "#059669",
+  "dir": "rtl",
+  "lang": "ar",
+  "orientation": "any",
+  "categories": ["engineering", "productivity", "utilities"],
+  "prefer_related_applications": false,
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icon-1024.png",
+      "sizes": "1024x1024",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

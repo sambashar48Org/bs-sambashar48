@@ -1,0 +1,465 @@
+'use client';
+
+import React, { useState, useCallback, useEffect, useRef } from 'react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Button } from '@/components/ui/button';
+import { Textarea } from '@/components/ui/textarea';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Separator } from '@/components/ui/separator';
+import { useTranslation } from '@/lib/i18n';
+import { useProjectStore } from '@/stores';
+import {
+  loadArabicFont,
+  downloadPDF,
+  isFontLoaded,
+  type PDFSection,
+  type PDFReportConfig,
+} from '@/lib/pdf-report';
+import {
+  FileOutput,
+  Printer,
+  FileDown,
+  Settings2,
+  ListChecks,
+  Building2,
+  DraftingCompass,
+  HardHat,
+  Layers,
+  Columns3,
+  Palette,
+  PlugZap,
+  Pipette,
+  ClipboardList,
+  FileText,
+  Eye,
+  Loader2,
+  CheckCircle2,
+  AlertCircle,
+} from 'lucide-react';
+import { toast } from 'sonner';
+
+// ======== Types ========
+interface GenerateReportsProps {
+  projectData: Record<string, unknown>;
+}
+
+interface SectionOption {
+  id: string;
+  label: string;
+  dataKey: string;
+  icon: React.ReactNode;
+}
+
+// ======== Section Options ========
+const SECTION_OPTIONS: SectionOption[] = [
+  { id: 'buildingData', label: 'buildingData', dataKey: 'building_data', icon: <Building2 className="h-4 w-4" /> },
+  { id: 'architecturalReport', label: 'architecturalReport', dataKey: 'architectural_report', icon: <DraftingCompass className="h-4 w-4" /> },
+  { id: 'structuralReport', label: 'structuralReport', dataKey: 'structural_report', icon: <HardHat className="h-4 w-4" /> },
+  { id: 'foundations', label: 'foundations', dataKey: 'foundations', icon: <Layers className="h-4 w-4" /> },
+  { id: 'columnsWalls', label: 'columnsWalls', dataKey: 'columns_walls', icon: <Columns3 className="h-4 w-4" /> },
+  { id: 'beamSlab', label: 'beamSlab', dataKey: 'beam_slab', icon: <Palette className="h-4 w-4" /> },
+  { id: 'electricalReport', label: 'electricalReport', dataKey: 'electrical', icon: <PlugZap className="h-4 w-4" /> },
+  { id: 'plumbingReport', label: 'plumbingReport', dataKey: 'plumbing', icon: <Pipette className="h-4 w-4" /> },
+  { id: 'technicalNotes', label: 'technicalNotes', dataKey: 'technical_notes', icon: <ClipboardList className="h-4 w-4" /> },
+  { id: 'finalReport', label: 'finalReport', dataKey: 'final_report', icon: <FileText className="h-4 w-4" /> },
+];
+
+// ======== Component ========
+export default function GenerateReports({ projectData }: GenerateReportsProps) {
+  const { t, isRTL } = useTranslation();
+  const {
+    reportPreferences,
+    setReportPreferences,
+  } = useProjectStore();
+
+  const [companyName, setCompanyName] = useState(reportPreferences.companyName);
+  const [reportHeader, setReportHeader] = useState(reportPreferences.reportHeader);
+  const [reportFooter, setReportFooter] = useState(reportPreferences.reportFooter);
+  const [selectedSections, setSelectedSections] = useState<string[]>(reportPreferences.selectedSections);
+
+  // PDF generation state
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [fontLoading, setFontLoading] = useState(false);
+  const [generationProgress, setGenerationProgress] = useState<string>('');
+  const abortRef = useRef(false);
+
+  // ======== Section label mapping (translate display) ========
+  const getSectionLabel = (sectionId: string): string => {
+    const map: Record<string, string> = {
+      buildingData: t.buildingDataTitle,
+      architecturalReport: t.architecturalDescReport,
+      structuralReport: t.structuralTechnicalReport,
+      foundations: t.foundationsTitle,
+      columnsWalls: t.columnsWallsTitle,
+      beamSlab: t.beamSlabGeneralParams,
+      electricalReport: t.electricalReportTitle,
+      plumbingReport: t.plumbingReportTitle,
+      technicalNotes: t.technicalNotesTitle,
+      finalReport: t.finalReportTitle,
+    };
+    return map[sectionId] || sectionId;
+  };
+
+  // Auto-save preferences on change
+  React.useEffect(() => {
+    const timer = setTimeout(() => {
+      setReportPreferences({
+        companyName,
+        reportHeader,
+        reportFooter,
+        selectedSections,
+      });
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [companyName, reportHeader, reportFooter, selectedSections, setReportPreferences]);
+
+  // Preload font on mount
+  useEffect(() => {
+    if (!isFontLoaded()) {
+      setFontLoading(true);
+      loadArabicFont().then((ok) => {
+        setFontLoading(false);
+        if (!ok) {
+          console.warn('[GenerateReports] Arabic font preload failed — will retry on download');
+        }
+      });
+    }
+  }, []);
+
+  // Toggle section selection
+  const toggleSection = useCallback((sectionId: string) => {
+    setSelectedSections((prev) =>
+      prev.includes(sectionId)
+        ? prev.filter((s) => s !== sectionId)
+        : [...prev, sectionId]
+    );
+  }, []);
+
+  // Select all / deselect all
+  const selectAll = useCallback(() => {
+    setSelectedSections(SECTION_OPTIONS.map((s) => s.id));
+  }, []);
+
+  const deselectAll = useCallback(() => {
+    setSelectedSections([]);
+  }, []);
+
+  // Check if section has data
+  const hasDataForSection = useCallback(
+    (dataKey: string): boolean => {
+      const sectionData = projectData[dataKey];
+      if (!sectionData) return false;
+      return Object.keys(sectionData).length > 0;
+    },
+    [projectData]
+  );
+
+  // Build PDF config from selected sections
+  const buildPDFConfig = useCallback((): PDFReportConfig => {
+    const sections: PDFSection[] = selectedSections
+      .map((id, idx) => {
+        const opt = SECTION_OPTIONS.find((s) => s.id === id);
+        if (!opt) return null;
+        return {
+          id: opt.id,
+          label: getSectionLabel(opt.id),
+          dataKey: opt.dataKey,
+          number: idx + 1,
+        };
+      })
+      .filter(Boolean) as PDFSection[];
+
+    return {
+      companyName,
+      reportHeader,
+      reportFooter,
+      sections,
+      projectData,
+    };
+  }, [selectedSections, companyName, reportHeader, reportFooter, projectData, t]);
+
+  // Print preview (browser native)
+  const handlePrintPreview = useCallback(() => {
+    if (selectedSections.length === 0) {
+      toast.error(t.selectAtLeastOne);
+      return;
+    }
+    window.print();
+  }, [selectedSections, t]);
+
+  // Download PDF using @react-pdf/renderer
+  const handleDownloadPDF = useCallback(async () => {
+    if (selectedSections.length === 0) {
+      toast.error(t.selectAtLeastOne);
+      return;
+    }
+
+    abortRef.current = false;
+    setIsGenerating(true);
+    setGenerationProgress(t.loadingArabicFont);
+
+    try {
+      // Step 1: Load Arabic font
+      if (!isFontLoaded()) {
+        setGenerationProgress(t.loadingArabicFont);
+        const fontOk = await loadArabicFont();
+        if (!fontOk) {
+          throw new Error(t.arabicFontFailed);
+        }
+      }
+
+      if (abortRef.current) return;
+
+      // Step 2: Build config
+      setGenerationProgress(t.preparingData);
+      const config = buildPDFConfig();
+
+      // Small delay to let UI update
+      await new Promise((r) => setTimeout(r, 100));
+
+      if (abortRef.current) return;
+
+      // Step 3: Generate PDF
+      setGenerationProgress(t.creatingPdf);
+      await downloadPDF(config);
+
+      if (abortRef.current) return;
+
+      // Success
+      setGenerationProgress('');
+      toast.success(t.pdfCreatedSuccess, {
+        icon: <CheckCircle2 className="h-4 w-4 text-emerald-600" />,
+      });
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : t.pdfCreationError;
+      console.error('[GenerateReports] PDF generation failed:', err);
+      toast.error(message, {
+        icon: <AlertCircle className="h-4 w-4 text-red-600" />,
+        duration: 6000,
+      });
+    } finally {
+      setIsGenerating(false);
+      setGenerationProgress('');
+    }
+  }, [selectedSections, buildPDFConfig, t]);
+
+  const labelClass = 'text-sm font-medium text-foreground/80';
+  const helperClass = 'text-xs text-muted-foreground';
+
+  return (
+    <div className="space-y-6">
+      {/* ===== Section 1: تفضيلات المستخدم ===== */}
+      <Card className="border-emerald-200/50 shadow-sm overflow-hidden">
+        <CardHeader className="bg-gradient-to-r from-emerald-500 to-teal-500 text-white pb-4">
+          <CardTitle className="flex items-center gap-3 text-lg">
+            <div className="p-2 bg-white/20 rounded-lg backdrop-blur-sm">
+              <Settings2 className="h-5 w-5" />
+            </div>
+            <span>{t.generateReportsTitle}</span>
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="p-6 space-y-6">
+          {/* اسم المكتب/الشركة */}
+          <div className="space-y-2">
+            <Label className={labelClass}>{t.companyName}</Label>
+            <p className={helperClass}>{t.companyNameHint}</p>
+            <Input
+              value={companyName}
+              onChange={(e) => setCompanyName(e.target.value)}
+              placeholder={t.companyPlaceholder}
+              className="w-full"
+              dir={isRTL ? 'rtl' : 'ltr'}
+            />
+          </div>
+
+          {/* ترويسة التقرير */}
+          <div className="space-y-2">
+            <Label className={labelClass}>{t.reportHeader}</Label>
+            <p className={helperClass}>{t.reportHeaderHint}</p>
+            <Textarea
+              value={reportHeader}
+              onChange={(e) => setReportHeader(e.target.value)}
+              placeholder={t.headerPlaceholder}
+              className="min-h-[100px] resize-y"
+              dir={isRTL ? 'rtl' : 'ltr'}
+            />
+          </div>
+
+          {/* تذييل التقرير */}
+          <div className="space-y-2">
+            <Label className={labelClass}>{t.reportFooter}</Label>
+            <p className={helperClass}>{t.reportFooterHint}</p>
+            <Textarea
+              value={reportFooter}
+              onChange={(e) => setReportFooter(e.target.value)}
+              placeholder={t.footerPlaceholder}
+              className="min-h-[80px] resize-y"
+              dir={isRTL ? 'rtl' : 'ltr'}
+            />
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* ===== Section 2: اختيار الواجهات ===== */}
+      <Card className="border-emerald-200/50 shadow-sm overflow-hidden">
+        <CardHeader className="bg-gradient-to-r from-teal-600 to-emerald-600 text-white pb-4">
+          <CardTitle className="flex items-center gap-3 text-lg">
+            <div className="p-2 bg-white/20 rounded-lg backdrop-blur-sm">
+              <ListChecks className="h-5 w-5" />
+            </div>
+            <span>{t.sectionSelection}</span>
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="p-6">
+          {/* Select All / Deselect All */}
+          <div className="flex items-center justify-between mb-4">
+            <p className="text-sm text-muted-foreground">
+              {t.sectionSelectionHint}
+              <span className="ms-2 font-medium text-foreground">
+                ({selectedSections.length}/{SECTION_OPTIONS.length})
+              </span>
+            </p>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="ghost"
+                size="sm"
+                className="text-xs text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50"
+                onClick={selectAll}
+              >
+                {t.selectAll}
+              </Button>
+              <Separator orientation="vertical" className="h-4" />
+              <Button
+                variant="ghost"
+                size="sm"
+                className="text-xs text-muted-foreground hover:text-foreground"
+                onClick={deselectAll}
+              >
+                {t.deselectAll}
+              </Button>
+            </div>
+          </div>
+
+          {/* Section Checkboxes */}
+          <div className="space-y-1">
+            {SECTION_OPTIONS.map((section) => {
+              const isChecked = selectedSections.includes(section.id);
+              const hasData = hasDataForSection(section.dataKey);
+
+              return (
+                <label
+                  key={section.id}
+                  htmlFor={`section-${section.id}`}
+                  className={`flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-all duration-150 border ${
+                    isChecked
+                      ? 'bg-emerald-50 dark:bg-emerald-900/15 border-emerald-200 dark:border-emerald-800'
+                      : 'hover:bg-muted/50 border-transparent'
+                  }`}
+                >
+                  <Checkbox
+                    id={`section-${section.id}`}
+                    checked={isChecked}
+                    onCheckedChange={() => toggleSection(section.id)}
+                    className="data-[state=checked]:bg-emerald-600 data-[state=checked]:border-emerald-600"
+                  />
+                  <div className="flex items-center gap-3 flex-1 min-w-0">
+                    <div
+                      className={`p-1.5 rounded-lg shrink-0 ${
+                        isChecked
+                          ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400'
+                          : 'bg-muted text-muted-foreground'
+                      }`}
+                    >
+                      {section.icon}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className={`text-sm font-medium ${isChecked ? 'text-foreground' : 'text-foreground/70'}`}>
+                        {getSectionLabel(section.id)}
+                      </p>
+                    </div>
+                    {!hasData && (
+                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-muted text-muted-foreground shrink-0">
+                        {t.noData}
+                      </span>
+                    )}
+                  </div>
+                </label>
+              );
+            })}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* ===== Section 3: إجراءات ===== */}
+      <Card className="border-emerald-200/50 shadow-sm overflow-hidden">
+        <CardHeader className="bg-gradient-to-r from-emerald-700 to-teal-700 text-white pb-4">
+          <CardTitle className="flex items-center gap-3 text-lg">
+            <div className="p-2 bg-white/20 rounded-lg backdrop-blur-sm">
+              <FileOutput className="h-5 w-5" />
+            </div>
+            <span>{t.procedures}</span>
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="p-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {/* معاينة قبل الطباعة */}
+            <Button
+              onClick={handlePrintPreview}
+              disabled={selectedSections.length === 0 || isGenerating}
+              className="h-auto py-4 flex flex-col items-center gap-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white shadow-md hover:shadow-lg transition-all duration-200 disabled:opacity-50 disabled:shadow-none"
+            >
+              <Eye className="h-6 w-6" />
+              <span className="text-sm font-medium">{t.printPreview}</span>
+              <span className="text-[10px] opacity-80">{t.printPreviewHint}</span>
+            </Button>
+
+            {/* تحميل ملف PDF */}
+            <Button
+              onClick={handleDownloadPDF}
+              disabled={selectedSections.length === 0 || isGenerating}
+              variant="outline"
+              className="h-auto py-4 flex flex-col items-center gap-2 border-emerald-300 text-emerald-700 hover:bg-emerald-50 hover:text-emerald-800 disabled:opacity-50 transition-all duration-200"
+            >
+              {isGenerating ? (
+                <>
+                  <Loader2 className="h-6 w-6 animate-spin" />
+                  <span className="text-sm font-medium">{t.creating}</span>
+                  <span className="text-[10px] text-muted-foreground">{generationProgress}</span>
+                </>
+              ) : (
+                <>
+                  <FileDown className="h-6 w-6" />
+                  <span className="text-sm font-medium">{t.downloadPdf}</span>
+                  <span className="text-[10px] text-muted-foreground">
+                    {fontLoading ? t.loadingFont : t.createAndDownload}
+                  </span>
+                </>
+              )}
+            </Button>
+          </div>
+
+          {/* Progress indicator during generation */}
+          {isGenerating && generationProgress && (
+            <div className="mt-4 p-3 bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800 rounded-lg">
+              <div className="flex items-center gap-3">
+                <Loader2 className="h-4 w-4 animate-spin text-emerald-600" />
+                <span className="text-sm text-emerald-700 dark:text-emerald-400">{generationProgress}</span>
+              </div>
+              <div className="mt-2 w-full bg-emerald-200 dark:bg-emerald-900 rounded-full h-1.5">
+                <div className="bg-emerald-600 h-1.5 rounded-full animate-pulse" style={{ width: '60%' }} />
+              </div>
+            </div>
+          )}
+
+          {selectedSections.length === 0 && !isGenerating && (
+            <p className="text-center text-sm text-muted-foreground mt-3">
+              {t.selectAtLeastOneHint}
+            </p>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
