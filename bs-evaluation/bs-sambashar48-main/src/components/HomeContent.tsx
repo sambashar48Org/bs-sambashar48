@@ -144,12 +144,12 @@ export default function HomeContent() {
         toast.error(data.error);
         return;
       }
-      toast.success('تم إنشاء المشروع بنجاح');
+      toast.success(t.projectCreated);
       setShowNewProject(false);
       setNewProjectName('');
       fetchProjects();
     } catch {
-      toast.error('فشل إنشاء المشروع');
+      toast.error(t.projectCreateFailed);
     }
   };
 
@@ -167,7 +167,7 @@ export default function HomeContent() {
       });
     } catch {
       setCurrentProjectId(previousProjectId);
-      toast.error('فشل تحديد المشروع');
+      toast.error(t.projectSelectFailed);
     }
   };
 
@@ -185,11 +185,11 @@ export default function HomeContent() {
         toast.error(data.error);
         return;
       }
-      toast.success('تم تعديل اسم المشروع');
+      toast.success(t.projectRenamed);
       setEditProjectId(null);
       fetchProjects();
     } catch {
-      toast.error('فشل تعديل المشروع');
+      toast.error(t.projectRenameFailed);
     }
   };
 
@@ -208,12 +208,12 @@ export default function HomeContent() {
         setProjects(previousProjects);
         return;
       }
-      toast.success('تم حذف المشروع');
+      toast.success(t.projectDeleted);
       setDeleteProjectId(null);
       fetchProjects();
     } catch {
       setProjects(previousProjects);
-      toast.error('فشل حذف المشروع');
+      toast.error(t.projectDeleteFailed);
     }
   };
 

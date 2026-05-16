@@ -68,7 +68,7 @@ function fileToBase64(file: File): Promise<string> {
 // ===================== Main Component =====================
 
 export default function PlumbingReport({ data, onSave }: PlumbingReportProps) {
-  const { isRTL } = useTranslation();
+  const { t, isRTL } = useTranslation();
 
   const [formData, setFormData] = useState<PlumbingData>(() => computeInitialData(data));
   const [isEditing, setIsEditing] = useState(false);
@@ -84,6 +84,31 @@ export default function PlumbingReport({ data, onSave }: PlumbingReportProps) {
     setIsEditing(false);
     setPendingData(null);
   }
+
+  // ---- Option Label Mappings ----
+
+  const mainSupplyOptionLabels: Record<string, string> = {
+    'شبكة عامة': t.publicGrid,
+    'شبكة خاصة بئر': t.privateWell,
+    'خزانات': t.tanks,
+    'مختلط': t.mixed,
+  };
+
+  const saltWaterPipeOptionLabels: Record<string, string> = {
+    'حديد': t.iron,
+    'فونت': t.font,
+    'أنابيب بيتونية': t.concretePipes,
+    'PVC': 'PVC',
+    'مختلط': t.mixed,
+    'أخرى': t.otherSystem,
+  };
+
+  const freshWaterPipeOptionLabels: Record<string, string> = {
+    'PPR': 'PPR',
+    'حديد': t.iron,
+    'مختلط': t.mixed,
+    'أخرى': t.otherSystem,
+  };
 
   // ---- Change Handlers ----
 
@@ -146,7 +171,8 @@ export default function PlumbingReport({ data, onSave }: PlumbingReportProps) {
     value: string,
     onChange: (val: string) => void,
     options: readonly string[],
-    helperText?: string
+    helperText?: string,
+    optionLabels?: Record<string, string>
   ) => (
     <div className="space-y-1.5">
       <Label className="text-xs font-medium text-foreground/70">{label}</Label>
@@ -154,15 +180,15 @@ export default function PlumbingReport({ data, onSave }: PlumbingReportProps) {
         value={value}
         onChange={(e) => onChange(e.target.value)}
         className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring appearance-none cursor-pointer"
-        dir="rtl"
+        dir={isRTL ? 'rtl' : 'ltr'}
         disabled={!isEditing}
       >
         <option value="" disabled>
-          اختر
+          {t.choose}
         </option>
         {options.map((opt) => (
           <option key={opt} value={opt}>
-            {opt}
+            {optionLabels?.[opt] ?? opt}
           </option>
         ))}
       </select>
@@ -209,9 +235,9 @@ export default function PlumbingReport({ data, onSave }: PlumbingReportProps) {
           disabled={images.length >= maxImages || !isEditing}
         >
           <Camera className="w-4 h-4" />
-          إضافة صور ({images.length}/{maxImages})
+          {t.addPhotos} ({images.length}/{maxImages})
         </Button>
-        <span className="text-[10px] text-gray-400">الحد الأقصى 1MB لكل صورة</span>
+        <span className="text-[10px] text-gray-400">{t.maxPhotoSize}</span>
       </div>
       <input
         ref={inputRef}
@@ -230,7 +256,7 @@ export default function PlumbingReport({ data, onSave }: PlumbingReportProps) {
             >
               <img
                 src={img}
-                alt={`صورة ${idx + 1}`}
+                alt={`${t.photo} ${idx + 1}`}
                 className="w-full h-full object-cover"
               />
               {isEditing && (
@@ -260,7 +286,7 @@ export default function PlumbingReport({ data, onSave }: PlumbingReportProps) {
             <div className="p-2 bg-white/20 rounded-lg backdrop-blur-sm">
               <Droplets className="h-5 w-5" />
             </div>
-            <span>التقرير الصحي</span>
+            <span>{t.plumbingReportTitle}</span>
           </CardTitle>
         </CardHeader>
       </Card>
@@ -269,34 +295,37 @@ export default function PlumbingReport({ data, onSave }: PlumbingReportProps) {
       <Card className="border-emerald-200/50 shadow-sm overflow-hidden">
         <CardHeader className="bg-gradient-to-r from-emerald-50 to-teal-50 dark:from-emerald-950/30 dark:to-teal-950/30 pb-3">
           <CardTitle className="text-sm font-semibold text-emerald-700 dark:text-emerald-400">
-            بيانات التقرير الصحي
+            {t.plumbingReportData}
           </CardTitle>
         </CardHeader>
         <CardContent className="p-5 space-y-5">
           {/* Selects Grid */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {renderSelectField(
-              'التغذية الرئيسية',
+              t.mainWaterSupply,
               formData.mainSupply,
               (v) => handleChange('mainSupply', v),
               ['شبكة عامة', 'شبكة خاصة بئر', 'خزانات', 'مختلط'] as const,
-              'حدد مصدر المياه الرئيسي'
+              t.chooseWaterSupply,
+              mainSupplyOptionLabels
             )}
 
             {renderSelectField(
-              'شبكة المياه المالحة',
+              t.saltWaterNetwork,
               formData.saltWaterNetwork,
               (v) => handleChange('saltWaterNetwork', v),
               ['حديد', 'فونت', 'أنابيب بيتونية', 'PVC', 'مختلط', 'أخرى'] as const,
-              'حدد نوع مواسير شبكة المياه المالحة'
+              t.chooseSaltPipe,
+              saltWaterPipeOptionLabels
             )}
 
             {renderSelectField(
-              'شبكة المياه الحلوة',
+              t.freshWaterNetwork,
               formData.freshWaterNetwork,
               (v) => handleChange('freshWaterNetwork', v),
               ['PPR', 'حديد', 'مختلط', 'أخرى'] as const,
-              'حدد نوع مواسير شبكة المياه الحلوة'
+              t.chooseFreshPipe,
+              freshWaterPipeOptionLabels
             )}
           </div>
 
@@ -304,7 +333,7 @@ export default function PlumbingReport({ data, onSave }: PlumbingReportProps) {
           <div className="border border-border/50 rounded-lg overflow-hidden bg-muted/20">
             <div className="flex items-center justify-between px-4 py-3 bg-muted/30">
               <Label className="text-sm font-medium text-foreground/80 cursor-pointer">
-                وجود تسريب
+                {t.leakExist}
               </Label>
               <Switch
                 checked={formData.hasLeakage}
@@ -323,15 +352,15 @@ export default function PlumbingReport({ data, onSave }: PlumbingReportProps) {
               <div className="overflow-hidden min-h-0">
                 <div className="p-4 pt-3 space-y-4">
                   {renderTextareaField(
-                    'وصف التسريب',
+                    t.leakDescription,
                     formData.leakageDescription,
                     (v) => handleChange('leakageDescription', v),
-                    'صف موقع التسريب وشدة ومصدره...',
-                    'حدد الموقع والشدة والعنصر المتسرب منه'
+                    t.leakDescriptionPlaceholder,
+                    t.leakDescriptionHint
                   )}
 
                   <div className="space-y-2">
-                    <Label className="text-xs font-medium text-foreground/70">صور التسريب</Label>
+                    <Label className="text-xs font-medium text-foreground/70">{t.leakPhotos}</Label>
                     {renderImageUpload(
                       formData.leakagePhotos,
                       (files) => handlePhotoUpload(files, 'leakagePhotos', 4),
@@ -347,11 +376,11 @@ export default function PlumbingReport({ data, onSave }: PlumbingReportProps) {
 
           {/* Notes */}
           {renderTextareaField(
-            'ملاحظات وتوصيات',
+            t.plumbingNotes,
             formData.notes,
             (v) => handleChange('notes', v),
-            'أدخل ملاحظات وتوصيات حول النظام الصحي...',
-            'سجل أي ملاحظات أو توصيات ميدانية'
+            t.plumbingNotesPlaceholder,
+            t.plumbingNotesHint
           )}
         </CardContent>
       </Card>
@@ -363,7 +392,7 @@ export default function PlumbingReport({ data, onSave }: PlumbingReportProps) {
             <div className="p-2 bg-white/20 rounded-lg backdrop-blur-sm">
               <Camera className="h-5 w-5" />
             </div>
-            <span>صور التقرير الصحي</span>
+            <span>{t.plumbingPhotos}</span>
           </CardTitle>
         </CardHeader>
         <CardContent className="p-5">
@@ -387,14 +416,14 @@ export default function PlumbingReport({ data, onSave }: PlumbingReportProps) {
               className="gap-2 text-sm"
             >
               <X className="w-4 h-4" />
-              إلغاء
+              {t.cancel}
             </Button>
             <Button
               onClick={handleSave}
               className="gap-2 text-sm bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white shadow-md hover:shadow-lg transition-all duration-200 px-6"
             >
               <Save className="w-4 h-4" />
-              حفظ البيانات
+              {t.saveData}
             </Button>
           </>
         ) : (
@@ -403,7 +432,7 @@ export default function PlumbingReport({ data, onSave }: PlumbingReportProps) {
             className="gap-2 text-sm bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white shadow-md hover:shadow-lg transition-all duration-200 px-6"
           >
             <Pencil className="w-4 h-4" />
-            تعديل البيانات
+            {t.editData}
           </Button>
         )}
       </div>

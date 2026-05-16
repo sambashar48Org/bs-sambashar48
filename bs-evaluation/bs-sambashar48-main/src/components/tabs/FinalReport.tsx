@@ -131,7 +131,7 @@ const REPORT_PURPOSE_OPTIONS = [
 
 // ======== Component ========
 export default function FinalReport({ data, onSave }: FinalReportProps) {
-  const { isRTL } = useTranslation();
+  const { t, isRTL } = useTranslation();
 
   const [formData, setFormData] = useState<FinalReportData>(() => computeInitialData(data));
   const [isEditing, setIsEditing] = useState(false);
@@ -143,6 +143,26 @@ export default function FinalReport({ data, onSave }: FinalReportProps) {
     setFormData(computeInitialData(data));
     setIsEditing(false);
   }
+
+  // ======== Label mapping functions (translate display, keep Arabic values for DB) ========
+  const getEvaluationLabel = (value: string): string => {
+    const map: Record<string, string> = {
+      'آمن': t.evalSafe,
+      'يحتاج مراقبة': t.evalMonitoring,
+      'يحتاج ترميم': t.evalRepair,
+      'غير آمن': t.evalUnsafe,
+      'خطر': t.evalDanger,
+    };
+    return map[value] || value;
+  };
+
+  const getPurposeLabel = (value: string): string => {
+    const map: Record<string, string> = {
+      'تقرير وضع راهن': t.purposeCurrentState,
+      'تقرير إضافة طابق': t.purposeAddFloor,
+    };
+    return map[value] || value;
+  };
 
   // Field updaters
   const updateField = useCallback(<K extends keyof FinalReportData>(key: K, value: FinalReportData[K]) => {
@@ -208,8 +228,8 @@ export default function FinalReport({ data, onSave }: FinalReportProps) {
   const handleSave = useCallback(() => {
     onSave(formData as unknown as Record<string, unknown>);
     setIsEditing(false);
-    toast.success('تم حفظ التقرير الفني النهائي بنجاح');
-  }, [formData, onSave]);
+    toast.success(t.finalReportSaved);
+  }, [formData, onSave, t]);
 
   const handleEdit = useCallback(() => {
     setIsEditing(true);
@@ -228,19 +248,19 @@ export default function FinalReport({ data, onSave }: FinalReportProps) {
             <div className="p-2 bg-white/20 rounded-lg backdrop-blur-sm">
               <FileText className="h-5 w-5" />
             </div>
-            <span>التقرير الفني النهائي</span>
+            <span>{t.finalReportTitle}</span>
           </CardTitle>
         </CardHeader>
         <CardContent className="p-6 space-y-6">
           {/* المتطلبات الأساسية والأعمال المطلوبة */}
           <div className="space-y-2">
-            <Label className={labelClass}>المتطلبات الأساسية والأعمال المطلوبة</Label>
-            <p className={helperClass}>وصف المتطلبات الأساسية والأعمال المطلوبة في التقرير</p>
+            <Label className={labelClass}>{t.requirementsTitle}</Label>
+            <p className={helperClass}>{t.requirementsTitle}</p>
             {isEditing ? (
               <Textarea
                 value={formData.requirements}
                 onChange={(e) => updateField('requirements', e.target.value)}
-                placeholder="أدخل المتطلبات الأساسية والأعمال المطلوبة..."
+                placeholder={t.requirementsPlaceholder}
                 className="min-h-[140px] resize-y"
                 dir={isRTL ? 'rtl' : 'ltr'}
               />
@@ -250,7 +270,7 @@ export default function FinalReport({ data, onSave }: FinalReportProps) {
                 dir={isRTL ? 'rtl' : 'ltr'}
               >
                 {formData.requirements || (
-                  <span className="text-muted-foreground italic">لم يتم إدخال متطلبات بعد</span>
+                  <span className="text-muted-foreground italic">{t.noRequirementsYet}</span>
                 )}
               </div>
             )}
@@ -258,20 +278,20 @@ export default function FinalReport({ data, onSave }: FinalReportProps) {
 
           {/* ===== Section 2: التقييم العام ===== */}
           <div className="space-y-2">
-            <Label className={labelClass}>التقييم العام</Label>
-            <p className={helperClass}>اختر التقييم العام للمنشأة</p>
+            <Label className={labelClass}>{t.overallEvaluation}</Label>
+            <p className={helperClass}>{t.chooseEvaluation}</p>
             {isEditing ? (
               <Select
                 value={formData.overallEvaluation || ''}
                 onValueChange={(val) => updateField('overallEvaluation', val)}
               >
                 <SelectTrigger className={inputBaseClass}>
-                  <SelectValue placeholder="اختر التقييم العام" />
+                  <SelectValue placeholder={t.chooseEvaluation} />
                 </SelectTrigger>
                 <SelectContent>
                   {EVALUATION_CATEGORIES.map((opt) => (
                     <SelectItem key={opt} value={opt}>
-                      {opt}
+                      {getEvaluationLabel(opt)}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -280,10 +300,10 @@ export default function FinalReport({ data, onSave }: FinalReportProps) {
               <div className="flex items-center gap-3">
                 {formData.overallEvaluation ? (
                   <Badge className={`px-4 py-1.5 text-sm border ${evaluationBadgeClass(formData.overallEvaluation)}`}>
-                    {formData.overallEvaluation}
+                    {getEvaluationLabel(formData.overallEvaluation)}
                   </Badge>
                 ) : (
-                  <span className="text-muted-foreground italic text-sm">لم يتم اختيار تقييم</span>
+                  <span className="text-muted-foreground italic text-sm">{t.noEvaluation}</span>
                 )}
               </div>
             )}
@@ -291,8 +311,8 @@ export default function FinalReport({ data, onSave }: FinalReportProps) {
 
           {/* ===== Section 3: غرض التقرير ===== */}
           <div className="space-y-3">
-            <Label className={labelClass}>غرض التقرير</Label>
-            <p className={helperClass}>اختر نوع التقرير المطلوب</p>
+            <Label className={labelClass}>{t.reportPurpose}</Label>
+            <p className={helperClass}>{t.choosePurpose}</p>
             {isEditing ? (
               <>
                 <Select
@@ -300,22 +320,22 @@ export default function FinalReport({ data, onSave }: FinalReportProps) {
                   onValueChange={(val) => updateField('reportPurpose', val)}
                 >
                   <SelectTrigger className={inputBaseClass}>
-                    <SelectValue placeholder="اختر غرض التقرير" />
+                    <SelectValue placeholder={t.choosePurpose} />
                   </SelectTrigger>
                   <SelectContent>
                     {REPORT_PURPOSE_OPTIONS.map((opt) => (
                       <SelectItem key={opt.value} value={opt.value}>
-                        {opt.label}
+                        {getPurposeLabel(opt.value)}
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
                 <div className="space-y-2 mt-3">
-                  <Label className="text-xs font-medium text-muted-foreground">وصف إضافي</Label>
+                  <Label className="text-xs font-medium text-muted-foreground">{t.additionalDescription}</Label>
                   <Textarea
                     value={formData.reportPurposeDescription}
                     onChange={(e) => updateField('reportPurposeDescription', e.target.value)}
-                    placeholder="أدخل وصفاً إضافياً لغرض التقرير (اختياري)..."
+                    placeholder={t.additionalDescPlaceholder}
                     className="min-h-[80px] resize-y"
                     dir={isRTL ? 'rtl' : 'ltr'}
                   />
@@ -324,7 +344,7 @@ export default function FinalReport({ data, onSave }: FinalReportProps) {
             ) : (
               <div className="space-y-1">
                 <p className="text-sm font-medium text-foreground/90">
-                  {formData.reportPurpose || <span className="text-muted-foreground italic">لم يتم اختيار غرض</span>}
+                  {formData.reportPurpose ? getPurposeLabel(formData.reportPurpose) : <span className="text-muted-foreground italic">{t.noPurpose}</span>}
                 </p>
                 {formData.reportPurposeDescription && (
                   <p className="text-sm text-muted-foreground whitespace-pre-wrap" dir={isRTL ? 'rtl' : 'ltr'}>
@@ -345,7 +365,7 @@ export default function FinalReport({ data, onSave }: FinalReportProps) {
               <div className="p-2 bg-white/20 rounded-lg backdrop-blur-sm">
                 <Users className="h-5 w-5" />
               </div>
-              <span>جدول المهندسين</span>
+              <span>{t.engineersTable}</span>
             </div>
             {isEditing && (
               <Button
@@ -355,7 +375,7 @@ export default function FinalReport({ data, onSave }: FinalReportProps) {
                 onClick={addEngineer}
               >
                 <Plus className="h-4 w-4" />
-                <span className="text-xs">إضافة مهندس</span>
+                <span className="text-xs">{t.addEngineer}</span>
               </Button>
             )}
           </CardTitle>
@@ -364,7 +384,7 @@ export default function FinalReport({ data, onSave }: FinalReportProps) {
           {formData.engineers.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground">
               <Users className="h-10 w-10 mx-auto mb-2 opacity-30" />
-              <p className="text-sm">لم يتم إضافة أي مهندس بعد</p>
+              <p className="text-sm">{t.noEngineersYet}</p>
               {isEditing && (
                 <Button
                   variant="outline"
@@ -373,7 +393,7 @@ export default function FinalReport({ data, onSave }: FinalReportProps) {
                   onClick={addEngineer}
                 >
                   <Plus className="h-4 w-4 me-1.5" />
-                  إضافة مهندس
+                  {t.addEngineer}
                 </Button>
               )}
             </div>
@@ -388,10 +408,10 @@ export default function FinalReport({ data, onSave }: FinalReportProps) {
                       </div>
                       <div className="flex-1 text-start min-w-0">
                         <p className="text-sm font-medium truncate">
-                          {eng.name || <span className="text-muted-foreground italic">مهندس بدون اسم</span>}
+                          {eng.name || <span className="text-muted-foreground italic">{t.engineerNoName}</span>}
                         </p>
                         <p className="text-xs text-muted-foreground truncate">
-                          {eng.discipline || 'بدون اختصاص'}
+                          {eng.discipline || t.noSpecialization}
                           {eng.licenseNumber && ` — ${eng.licenseNumber}`}
                         </p>
                       </div>
@@ -401,7 +421,7 @@ export default function FinalReport({ data, onSave }: FinalReportProps) {
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 px-1" dir={isRTL ? 'rtl' : 'ltr'}>
                       {/* التسلسل */}
                       <div className="space-y-1.5">
-                        <Label className="text-xs text-muted-foreground">التسلسل</Label>
+                        <Label className="text-xs text-muted-foreground">{t.sequence}</Label>
                         {isEditing ? (
                           <Input
                             type="number"
@@ -418,14 +438,14 @@ export default function FinalReport({ data, onSave }: FinalReportProps) {
                       </div>
                       {/* الاختصاص */}
                       <div className="space-y-1.5">
-                        <Label className="text-xs text-muted-foreground">الاختصاص</Label>
+                        <Label className="text-xs text-muted-foreground">{t.specialization}</Label>
                         {isEditing ? (
                           <Select
                             value={eng.discipline || ''}
                             onValueChange={(val) => updateEngineer(eng.id, { discipline: val })}
                           >
                             <SelectTrigger className="h-9">
-                              <SelectValue placeholder="اختر الاختصاص" />
+                              <SelectValue placeholder={t.chooseSpecialization} />
                             </SelectTrigger>
                             <SelectContent>
                               {ENGINEERING_DISCIPLINES.map((d) => (
@@ -443,12 +463,12 @@ export default function FinalReport({ data, onSave }: FinalReportProps) {
                       </div>
                       {/* اسم المهندس */}
                       <div className="space-y-1.5">
-                        <Label className="text-xs text-muted-foreground">اسم المهندس</Label>
+                        <Label className="text-xs text-muted-foreground">{t.engineerName}</Label>
                         {isEditing ? (
                           <Input
                             value={eng.name}
                             onChange={(e) => updateEngineer(eng.id, { name: e.target.value })}
-                            placeholder="اسم المهندس"
+                            placeholder={t.engineerNamePlaceholder}
                             className="h-9"
                           />
                         ) : (
@@ -459,12 +479,12 @@ export default function FinalReport({ data, onSave }: FinalReportProps) {
                       </div>
                       {/* رقم المهندس النقابي */}
                       <div className="space-y-1.5">
-                        <Label className="text-xs text-muted-foreground">رقم المهندس النقابي</Label>
+                        <Label className="text-xs text-muted-foreground">{t.engineerNumber}</Label>
                         {isEditing ? (
                           <Input
                             value={eng.licenseNumber}
                             onChange={(e) => updateEngineer(eng.id, { licenseNumber: e.target.value })}
-                            placeholder="رقم التسجيل النقابي"
+                            placeholder={t.engineerNumberPlaceholder}
                             className="h-9"
                           />
                         ) : (
@@ -475,12 +495,12 @@ export default function FinalReport({ data, onSave }: FinalReportProps) {
                       </div>
                       {/* توقيع المهندس */}
                       <div className="space-y-1.5 sm:col-span-2">
-                        <Label className="text-xs text-muted-foreground">توقيع المهندس</Label>
+                        <Label className="text-xs text-muted-foreground">{t.engineerSignature}</Label>
                         {isEditing ? (
                           <Input
                             value={eng.signature}
                             onChange={(e) => updateEngineer(eng.id, { signature: e.target.value })}
-                            placeholder="اسم التوقيع"
+                            placeholder={t.signatureNamePlaceholder}
                             className="h-9"
                           />
                         ) : (
@@ -499,7 +519,7 @@ export default function FinalReport({ data, onSave }: FinalReportProps) {
                             onClick={() => deleteEngineer(eng.id)}
                           >
                             <Trash2 className="h-4 w-4" />
-                            <span className="text-xs">حذف</span>
+                            <span className="text-xs">{t.remove}</span>
                           </Button>
                         </div>
                       )}
@@ -520,7 +540,7 @@ export default function FinalReport({ data, onSave }: FinalReportProps) {
               <div className="p-2 bg-white/20 rounded-lg backdrop-blur-sm">
                 <ShieldCheck className="h-5 w-5" />
               </div>
-              <span>جدول التدقيق والتصديق</span>
+              <span>{t.reviewTable}</span>
             </div>
             {isEditing && (
               <Button
@@ -530,7 +550,7 @@ export default function FinalReport({ data, onSave }: FinalReportProps) {
                 onClick={addApproval}
               >
                 <Plus className="h-4 w-4" />
-                <span className="text-xs">إضافة</span>
+                <span className="text-xs">{t.add}</span>
               </Button>
             )}
           </CardTitle>
@@ -539,7 +559,7 @@ export default function FinalReport({ data, onSave }: FinalReportProps) {
           {formData.approvals.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground">
               <ShieldCheck className="h-10 w-10 mx-auto mb-2 opacity-30" />
-              <p className="text-sm">لم يتم إضافة أي مدخل بعد</p>
+              <p className="text-sm">{t.noEntriesYet}</p>
               {isEditing && (
                 <Button
                   variant="outline"
@@ -548,7 +568,7 @@ export default function FinalReport({ data, onSave }: FinalReportProps) {
                   onClick={addApproval}
                 >
                   <Plus className="h-4 w-4 me-1.5" />
-                  إضافة
+                  {t.add}
                 </Button>
               )}
             </div>
@@ -563,10 +583,10 @@ export default function FinalReport({ data, onSave }: FinalReportProps) {
                       </div>
                       <div className="flex-1 text-start min-w-0">
                         <p className="text-sm font-medium truncate">
-                          {app.name || <span className="text-muted-foreground italic">بدون اسم</span>}
+                          {app.name || <span className="text-muted-foreground italic">{t.noName}</span>}
                         </p>
                         <p className="text-xs text-muted-foreground truncate">
-                          {app.role || 'بدون جهة'}
+                          {app.role || t.noEntity}
                           {app.discipline && ` — ${app.discipline}`}
                           {app.date && ` — ${app.date}`}
                         </p>
@@ -577,7 +597,7 @@ export default function FinalReport({ data, onSave }: FinalReportProps) {
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 px-1" dir={isRTL ? 'rtl' : 'ltr'}>
                       {/* التسلسل */}
                       <div className="space-y-1.5">
-                        <Label className="text-xs text-muted-foreground">التسلسل</Label>
+                        <Label className="text-xs text-muted-foreground">{t.sequence}</Label>
                         {isEditing ? (
                           <Input
                             type="number"
@@ -594,14 +614,14 @@ export default function FinalReport({ data, onSave }: FinalReportProps) {
                       </div>
                       {/* الجهة */}
                       <div className="space-y-1.5">
-                        <Label className="text-xs text-muted-foreground">الجهة</Label>
+                        <Label className="text-xs text-muted-foreground">{t.entity}</Label>
                         {isEditing ? (
                           <Select
                             value={app.role || ''}
                             onValueChange={(val) => updateApproval(app.id, { role: val })}
                           >
                             <SelectTrigger className="h-9">
-                              <SelectValue placeholder="اختر الجهة" />
+                              <SelectValue placeholder={t.chooseEntity} />
                             </SelectTrigger>
                             <SelectContent>
                               {APPROVAL_TYPES.map((r) => (
@@ -619,12 +639,12 @@ export default function FinalReport({ data, onSave }: FinalReportProps) {
                       </div>
                       {/* الاسم */}
                       <div className="space-y-1.5">
-                        <Label className="text-xs text-muted-foreground">الاسم</Label>
+                        <Label className="text-xs text-muted-foreground">{t.name}</Label>
                         {isEditing ? (
                           <Input
                             value={app.name}
                             onChange={(e) => updateApproval(app.id, { name: e.target.value })}
-                            placeholder="الاسم"
+                            placeholder={t.name}
                             className="h-9"
                           />
                         ) : (
@@ -635,12 +655,12 @@ export default function FinalReport({ data, onSave }: FinalReportProps) {
                       </div>
                       {/* الاختصاص */}
                       <div className="space-y-1.5">
-                        <Label className="text-xs text-muted-foreground">الاختصاص</Label>
+                        <Label className="text-xs text-muted-foreground">{t.specialization}</Label>
                         {isEditing ? (
                           <Input
                             value={app.discipline}
                             onChange={(e) => updateApproval(app.id, { discipline: e.target.value })}
-                            placeholder="الاختصاص"
+                            placeholder={t.specialization}
                             className="h-9"
                           />
                         ) : (
@@ -651,7 +671,7 @@ export default function FinalReport({ data, onSave }: FinalReportProps) {
                       </div>
                       {/* التاريخ */}
                       <div className="space-y-1.5">
-                        <Label className="text-xs text-muted-foreground">التاريخ</Label>
+                        <Label className="text-xs text-muted-foreground">{t.date}</Label>
                         {isEditing ? (
                           <Input
                             type="date"
@@ -667,12 +687,12 @@ export default function FinalReport({ data, onSave }: FinalReportProps) {
                       </div>
                       {/* التوقيع */}
                       <div className="space-y-1.5">
-                        <Label className="text-xs text-muted-foreground">التوقيع</Label>
+                        <Label className="text-xs text-muted-foreground">{t.signature}</Label>
                         {isEditing ? (
                           <Input
                             value={app.signature}
                             onChange={(e) => updateApproval(app.id, { signature: e.target.value })}
-                            placeholder="اسم التوقيع"
+                            placeholder={t.signatureNamePlaceholder}
                             className="h-9"
                           />
                         ) : (
@@ -691,7 +711,7 @@ export default function FinalReport({ data, onSave }: FinalReportProps) {
                             onClick={() => deleteApproval(app.id)}
                           >
                             <Trash2 className="h-4 w-4" />
-                            <span className="text-xs">حذف</span>
+                            <span className="text-xs">{t.remove}</span>
                           </Button>
                         </div>
                       )}
@@ -717,14 +737,14 @@ export default function FinalReport({ data, onSave }: FinalReportProps) {
                 }}
                 className="gap-1.5"
               >
-                <span className="text-sm">إلغاء</span>
+                <span className="text-sm">{t.cancel}</span>
               </Button>
               <Button
                 onClick={handleSave}
                 className="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white shadow-md hover:shadow-lg transition-all duration-200 gap-1.5 px-6"
               >
                 <Save className="h-4 w-4" />
-                <span className="text-sm">حفظ</span>
+                <span className="text-sm">{t.save}</span>
               </Button>
             </>
           ) : (
@@ -734,7 +754,7 @@ export default function FinalReport({ data, onSave }: FinalReportProps) {
               className="text-emerald-600 border-emerald-300 hover:bg-emerald-50 gap-1.5 px-6"
             >
               <Edit3 className="h-4 w-4" />
-              <span className="text-sm">تعديل</span>
+              <span className="text-sm">{t.editData}</span>
             </Button>
           )}
         </CardContent>

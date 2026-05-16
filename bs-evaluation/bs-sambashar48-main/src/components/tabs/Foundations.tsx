@@ -48,6 +48,7 @@ import {
   type ContinuousFoundationResult,
 } from '@/lib/calculations';
 import { useProjectStore } from '@/stores';
+import { useTranslation } from '@/lib/i18n';
 
 // ======== Types ========
 type FoundationType = (typeof FOUNDATION_TYPES)[number];
@@ -140,11 +141,8 @@ function restoreEntry(raw: Record<string, unknown>): FoundationEntry {
 }
 
 // ======== Column type options for mat foundation ========
-const COLUMN_TYPE_OPTIONS = [
-  { value: 'وسطي', label: 'وسطي' },
-  { value: 'طرفي', label: 'طرفي' },
-  { value: 'ركني', label: 'ركني' },
-] as const;
+// Column type values — labels resolved via getColumnPositionLabel inside component
+const COLUMN_TYPE_VALUES = ['وسطي', 'طرفي', 'ركني'] as const;
 
 const COLUMN_TYPE_MAP: Record<string, 'center' | 'edge' | 'corner'> = {
   'وسطي': 'center',
@@ -154,6 +152,28 @@ const COLUMN_TYPE_MAP: Record<string, 'center' | 'edge' | 'corner'> = {
 
 // ======== Component ========
 export default function Foundations({ data, onSave }: FoundationsProps) {
+  const { t, isRTL } = useTranslation();
+
+  // ======== i18n Helper Functions ========
+  const getFoundationTypeLabel = (value: string): string => {
+    switch (value) {
+      case 'منفردة': return t.isolatedFoundation;
+      case 'مشتركة': return t.combinedFoundation;
+      case 'حصيرة': return t.matFoundation;
+      case 'مستمرة': return t.continuousFoundation;
+      default: return value;
+    }
+  };
+
+  const getColumnPositionLabel = (value: string): string => {
+    switch (value) {
+      case 'وسطي': return t.columnPositionCenter;
+      case 'طرفي': return t.columnPositionEdge;
+      case 'ركني': return t.columnPositionCorner;
+      default: return value;
+    }
+  };
+
   // Access structural report for auto-filling allowable bearing
   const structuralReport = useProjectStore((s) => s.projectData.structural_report);
   const soilAllowable = useMemo(() => {
@@ -376,7 +396,7 @@ export default function Foundations({ data, onSave }: FoundationsProps) {
             {/* Name */}
             <div className="space-y-1">
               <Label className="text-xs text-muted-foreground">
-                اسم / رقم الأساس
+                {t.foundationName}
               </Label>
               <Input
                 value={entry.name}
@@ -390,7 +410,7 @@ export default function Foundations({ data, onSave }: FoundationsProps) {
             {/* Depth */}
             <div className="space-y-1">
               <Label className="text-xs text-muted-foreground">
-                عمق التأسيس (سم)
+                {t.foundationDepthLabel}
               </Label>
               <Input
                 type="number"
@@ -406,7 +426,7 @@ export default function Foundations({ data, onSave }: FoundationsProps) {
             {/* Length */}
             <div className="space-y-1">
               <Label className="text-xs text-muted-foreground">
-                الطول L (سم)
+                {t.lengthL}
               </Label>
               <Input
                 type="number"
@@ -422,7 +442,7 @@ export default function Foundations({ data, onSave }: FoundationsProps) {
             {/* Width */}
             <div className="space-y-1">
               <Label className="text-xs text-muted-foreground">
-                العرض W (سم)
+                {t.widthWB}
               </Label>
               <Input
                 type="number"
@@ -438,7 +458,7 @@ export default function Foundations({ data, onSave }: FoundationsProps) {
             {/* Height */}
             <div className="space-y-1">
               <Label className="text-xs text-muted-foreground">
-                الارتفاع H (سم)
+                {t.heightH}
               </Label>
               <Input
                 type="number"
@@ -454,7 +474,7 @@ export default function Foundations({ data, onSave }: FoundationsProps) {
             {/* Total Load */}
             <div className="space-y-1">
               <Label className="text-xs text-muted-foreground">
-                الحمولة الكلية (طن)
+                {t.totalLoadLabel}
               </Label>
               <Input
                 type="number"
@@ -475,7 +495,7 @@ export default function Foundations({ data, onSave }: FoundationsProps) {
             {/* Name */}
             <div className="space-y-1">
               <Label className="text-xs text-muted-foreground">
-                اسم / رقم الأساس
+                {t.foundationName}
               </Label>
               <Input
                 value={entry.name}
@@ -489,7 +509,7 @@ export default function Foundations({ data, onSave }: FoundationsProps) {
             {/* Depth */}
             <div className="space-y-1">
               <Label className="text-xs text-muted-foreground">
-                عمق التأسيس (سم)
+                {t.foundationDepthLabel}
               </Label>
               <Input
                 type="number"
@@ -505,7 +525,7 @@ export default function Foundations({ data, onSave }: FoundationsProps) {
             {/* Length */}
             <div className="space-y-1">
               <Label className="text-xs text-muted-foreground">
-                الطول L (سم)
+                {t.lengthL}
               </Label>
               <Input
                 type="number"
@@ -521,7 +541,7 @@ export default function Foundations({ data, onSave }: FoundationsProps) {
             {/* Width B */}
             <div className="space-y-1">
               <Label className="text-xs text-muted-foreground">
-                العرض B (سم)
+                {t.widthWB}
               </Label>
               <Input
                 type="number"
@@ -537,7 +557,7 @@ export default function Foundations({ data, onSave }: FoundationsProps) {
             {/* Height */}
             <div className="space-y-1">
               <Label className="text-xs text-muted-foreground">
-                الارتفاع H (سم)
+                {t.heightH}
               </Label>
               <Input
                 type="number"
@@ -553,7 +573,7 @@ export default function Foundations({ data, onSave }: FoundationsProps) {
             {/* P1 */}
             <div className="space-y-1">
               <Label className="text-xs text-muted-foreground">
-                حمل العمود الخارجي P₁ (طن)
+                {t.externalColumnLoad}
               </Label>
               <Input
                 type="number"
@@ -569,7 +589,7 @@ export default function Foundations({ data, onSave }: FoundationsProps) {
             {/* P2 */}
             <div className="space-y-1">
               <Label className="text-xs text-muted-foreground">
-                حمل العمود الداخلي P₂ (طن)
+                {t.internalColumnLoad}
               </Label>
               <Input
                 type="number"
@@ -585,7 +605,7 @@ export default function Foundations({ data, onSave }: FoundationsProps) {
             {/* S */}
             <div className="space-y-1">
               <Label className="text-xs text-muted-foreground">
-                المسافة بين العمودين S (سم)
+                {t.distanceBetweenColumns}
               </Label>
               <Input
                 type="number"
@@ -601,7 +621,7 @@ export default function Foundations({ data, onSave }: FoundationsProps) {
             {/* L_out */}
             <div className="space-y-1">
               <Label className="text-xs text-muted-foreground">
-                البروز الخارجي L_out (سم)
+                {t.outerCantilever}
               </Label>
               <Input
                 type="number"
@@ -622,7 +642,7 @@ export default function Foundations({ data, onSave }: FoundationsProps) {
             {/* Name */}
             <div className="space-y-1">
               <Label className="text-xs text-muted-foreground">
-                اسم / رقم الأساس
+                {t.foundationName}
               </Label>
               <Input
                 value={entry.name}
@@ -636,7 +656,7 @@ export default function Foundations({ data, onSave }: FoundationsProps) {
             {/* Depth */}
             <div className="space-y-1">
               <Label className="text-xs text-muted-foreground">
-                عمق التأسيس (سم)
+                {t.foundationDepthLabel}
               </Label>
               <Input
                 type="number"
@@ -652,7 +672,7 @@ export default function Foundations({ data, onSave }: FoundationsProps) {
             {/* Mat Thickness */}
             <div className="space-y-1">
               <Label className="text-xs text-muted-foreground">
-                سماكة الحصيرة H (سم)
+                {t.matThickness}
               </Label>
               <Input
                 type="number"
@@ -668,13 +688,13 @@ export default function Foundations({ data, onSave }: FoundationsProps) {
             {/* fc */}
             <div className="space-y-1">
               <Label className="text-xs text-muted-foreground">
-                المقاومة الاسطوانية f&apos;c (كغ/سم²)
+                {t.fcLabelShort} ({t.kgCm2})
               </Label>
               <Input
                 type="number"
                 value={entry.fc}
                 onChange={(e) => updateEntry(entry.id, 'fc', e.target.value)}
-                placeholder="مثال: 250"
+                placeholder={t.example250}
                 className="h-9 text-sm"
                 dir="ltr"
                 disabled={!isEditing}
@@ -684,7 +704,7 @@ export default function Foundations({ data, onSave }: FoundationsProps) {
             {/* Column Load */}
             <div className="space-y-1">
               <Label className="text-xs text-muted-foreground">
-                حمل أكبر عمود (طن)
+                {t.maxColumnLoad}
               </Label>
               <Input
                 type="number"
@@ -700,7 +720,7 @@ export default function Foundations({ data, onSave }: FoundationsProps) {
             {/* Column Width */}
             <div className="space-y-1">
               <Label className="text-xs text-muted-foreground">
-                عرض العمود (سم)
+                {t.columnWidthLabel}
               </Label>
               <Input
                 type="number"
@@ -716,7 +736,7 @@ export default function Foundations({ data, onSave }: FoundationsProps) {
             {/* Column Depth */}
             <div className="space-y-1">
               <Label className="text-xs text-muted-foreground">
-                عمق العمود (سم)
+                {t.columnDepthLabel}
               </Label>
               <Input
                 type="number"
@@ -732,7 +752,7 @@ export default function Foundations({ data, onSave }: FoundationsProps) {
             {/* Column Type */}
             <div className="space-y-1">
               <Label className="text-xs text-muted-foreground">
-                موقع العمود
+                {t.columnPosition}
               </Label>
               <Select
                 value={entry.columnType}
@@ -743,9 +763,9 @@ export default function Foundations({ data, onSave }: FoundationsProps) {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {COLUMN_TYPE_OPTIONS.map((ct) => (
-                    <SelectItem key={ct.value} value={ct.value}>
-                      {ct.label}
+                  {COLUMN_TYPE_VALUES.map((ct) => (
+                    <SelectItem key={ct} value={ct}>
+                      {getColumnPositionLabel(ct)}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -760,7 +780,7 @@ export default function Foundations({ data, onSave }: FoundationsProps) {
             {/* Name */}
             <div className="space-y-1">
               <Label className="text-xs text-muted-foreground">
-                اسم / رقم الأساس
+                {t.foundationName}
               </Label>
               <Input
                 value={entry.name}
@@ -774,7 +794,7 @@ export default function Foundations({ data, onSave }: FoundationsProps) {
             {/* Depth */}
             <div className="space-y-1">
               <Label className="text-xs text-muted-foreground">
-                عمق التأسيس (سم)
+                {t.foundationDepthLabel}
               </Label>
               <Input
                 type="number"
@@ -790,7 +810,7 @@ export default function Foundations({ data, onSave }: FoundationsProps) {
             {/* Width B */}
             <div className="space-y-1">
               <Label className="text-xs text-muted-foreground">
-                العرض B (سم)
+                {t.widthWB}
               </Label>
               <Input
                 type="number"
@@ -806,7 +826,7 @@ export default function Foundations({ data, onSave }: FoundationsProps) {
             {/* Height */}
             <div className="space-y-1">
               <Label className="text-xs text-muted-foreground">
-                الارتفاع H (سم)
+                {t.heightH}
               </Label>
               <Input
                 type="number"
@@ -822,7 +842,7 @@ export default function Foundations({ data, onSave }: FoundationsProps) {
             {/* q */}
             <div className="space-y-1 sm:col-span-2 lg:col-span-1">
               <Label className="text-xs text-muted-foreground">
-                الحمولة الخطية q (طن/م)
+                {t.linearLoad}
               </Label>
               <Input
                 type="number"
@@ -855,7 +875,7 @@ export default function Foundations({ data, onSave }: FoundationsProps) {
             <div className="flex items-center justify-between p-3 rounded-lg bg-background border">
               <div className="flex items-center gap-2">
                 <Gauge className="h-4 w-4 text-muted-foreground" />
-                <span className="text-sm text-muted-foreground">الإجهاد الفعلي</span>
+                <span className="text-sm text-muted-foreground">{t.actualStress}</span>
               </div>
               <span
                 className={`text-sm font-bold px-3 py-1 rounded-md ${
@@ -865,7 +885,7 @@ export default function Foundations({ data, onSave }: FoundationsProps) {
                 }`}
                 dir="ltr"
               >
-                {d.actualStress.toFixed(2)} كغ/سم²
+                {d.actualStress.toFixed(2)} {t.kgCm2}
               </span>
             </div>
 
@@ -873,10 +893,10 @@ export default function Foundations({ data, onSave }: FoundationsProps) {
             <div className="flex items-center justify-between p-3 rounded-lg bg-background border">
               <div className="flex items-center gap-2">
                 <ShieldCheck className="h-4 w-4 text-muted-foreground" />
-                <span className="text-sm text-muted-foreground">الإجهاد المسموح</span>
+                <span className="text-sm text-muted-foreground">{t.allowableStress}</span>
               </div>
               <span className="text-sm font-bold px-3 py-1 rounded-md bg-muted" dir="ltr">
-                {d.allowableStress.toFixed(2)} كغ/سم²
+                {d.allowableStress.toFixed(2)} {t.kgCm2}
               </span>
             </div>
 
@@ -895,7 +915,7 @@ export default function Foundations({ data, onSave }: FoundationsProps) {
                   <AlertTriangle className="h-5 w-5 text-red-600 dark:text-red-400" />
                 )}
                 <span className="text-sm font-bold">
-                  {d.safe ? 'آمن (محقق)' : 'غير آمن (غير محقق)'}
+                  {d.safe ? '{t.safeVerified}' : '{t.unsafeNotVerified}'}
                 </span>
               </div>
             </div>
@@ -903,7 +923,7 @@ export default function Foundations({ data, onSave }: FoundationsProps) {
             {/* Usage Ratio */}
             <div className="p-3 rounded-lg bg-muted/50">
               <div className="flex items-center justify-between mb-2">
-                <span className="text-xs text-muted-foreground">نسبة الإجهاد المستخدم</span>
+                <span className="text-xs text-muted-foreground">{t.stressUtilizationRatio}</span>
                 <span
                   className={`text-xs font-bold ${
                     d.safe ? 'text-emerald-600' : 'text-red-600'
@@ -936,10 +956,10 @@ export default function Foundations({ data, onSave }: FoundationsProps) {
             <div className="flex items-center justify-between p-3 rounded-lg bg-background border">
               <div className="flex items-center gap-2">
                 <Ruler className="h-4 w-4 text-muted-foreground" />
-                <span className="text-sm text-muted-foreground">اللامركزية e</span>
+                <span className="text-sm text-muted-foreground">{t.eccentricity}</span>
               </div>
               <span className="text-sm font-bold px-3 py-1 rounded-md bg-muted" dir="ltr">
-                {d.eccentricity.toFixed(2)} سم
+                {d.eccentricity.toFixed(2)} {t.cm}
               </span>
             </div>
 
@@ -963,10 +983,10 @@ export default function Foundations({ data, onSave }: FoundationsProps) {
                 )}
                 <span className="text-sm font-bold">
                   {d.eccentricityCase === 'ideal'
-                    ? 'حالة مثالية — توزيع منتظم'
+                    ? '{t.idealDistribution}'
                     : d.eccentricityCase === 'acceptable'
-                      ? 'حالة مقبولة — توزيع شبه منحرف'
-                      : 'خطر: دوران — توزيع غير منتظم'}
+                      ? '{t.acceptableDistribution}'
+                      : '{t.dangerDistribution}'}
                 </span>
               </div>
             </div>
@@ -976,7 +996,7 @@ export default function Foundations({ data, onSave }: FoundationsProps) {
               <div className="flex items-center justify-between p-3 rounded-lg bg-background border">
                 <div className="flex items-center gap-2">
                   <Gauge className="h-4 w-4 text-muted-foreground" />
-                  <span className="text-sm text-muted-foreground">الإجهاد الأقصى</span>
+                  <span className="text-sm text-muted-foreground">{t.maxStress}</span>
                 </div>
                 <span
                   className={`text-sm font-bold px-3 py-1 rounded-md ${
@@ -986,7 +1006,7 @@ export default function Foundations({ data, onSave }: FoundationsProps) {
                   }`}
                   dir="ltr"
                 >
-                  {d.sigmaMax.toFixed(2)} كغ/سم²
+                  {d.sigmaMax.toFixed(2)} {t.kgCm2}
                 </span>
               </div>
             )}
@@ -996,7 +1016,7 @@ export default function Foundations({ data, onSave }: FoundationsProps) {
               <div className="flex items-center justify-between p-3 rounded-lg bg-background border">
                 <div className="flex items-center gap-2">
                   <Gauge className="h-4 w-4 text-muted-foreground" />
-                  <span className="text-sm text-muted-foreground">الإجهاد الأدنى</span>
+                  <span className="text-sm text-muted-foreground">{t.minStress}</span>
                 </div>
                 <span
                   className={`text-sm font-bold px-3 py-1 rounded-md ${
@@ -1006,7 +1026,7 @@ export default function Foundations({ data, onSave }: FoundationsProps) {
                   }`}
                   dir="ltr"
                 >
-                  {d.sigmaMin.toFixed(2)} كغ/سم²
+                  {d.sigmaMin.toFixed(2)} {t.kgCm2}
                 </span>
               </div>
             )}
@@ -1016,10 +1036,10 @@ export default function Foundations({ data, onSave }: FoundationsProps) {
               <div className="flex items-center justify-between p-3 rounded-lg bg-background border">
                 <div className="flex items-center gap-2">
                   <ShieldCheck className="h-4 w-4 text-muted-foreground" />
-                  <span className="text-sm text-muted-foreground">الإجهاد المسموح</span>
+                  <span className="text-sm text-muted-foreground">{t.allowableStress}</span>
                 </div>
                 <span className="text-sm font-bold px-3 py-1 rounded-md bg-muted" dir="ltr">
-                  {d.allowableStress.toFixed(2)} كغ/سم²
+                  {d.allowableStress.toFixed(2)} {t.kgCm2}
                 </span>
               </div>
             )}
@@ -1039,7 +1059,7 @@ export default function Foundations({ data, onSave }: FoundationsProps) {
                   <XCircle className="h-5 w-5 text-red-600 dark:text-red-400" />
                 )}
                 <span className="text-sm font-bold">
-                  {d.safe ? 'الأساس آمن' : 'الأساس غير آمن'}
+                  {d.safe ? '{t.foundationSafe}' : '{t.foundationUnsafe}'}
                 </span>
               </div>
             </div>
@@ -1063,7 +1083,7 @@ export default function Foundations({ data, onSave }: FoundationsProps) {
             <div className="flex items-center justify-between p-3 rounded-lg bg-background border">
               <div className="flex items-center gap-2">
                 <Gauge className="h-4 w-4 text-muted-foreground" />
-                <span className="text-sm text-muted-foreground">إجهاد الثقب الفعلي</span>
+                <span className="text-sm text-muted-foreground">{t.actualPunchingStress}</span>
               </div>
               <span
                 className={`text-sm font-bold px-3 py-1 rounded-md ${
@@ -1073,7 +1093,7 @@ export default function Foundations({ data, onSave }: FoundationsProps) {
                 }`}
                 dir="ltr"
               >
-                {d.vp.toFixed(2)} كغ/سم²
+                {d.vp.toFixed(2)} {t.kgCm2}
               </span>
             </div>
 
@@ -1081,10 +1101,10 @@ export default function Foundations({ data, onSave }: FoundationsProps) {
             <div className="flex items-center justify-between p-3 rounded-lg bg-background border">
               <div className="flex items-center gap-2">
                 <ShieldCheck className="h-4 w-4 text-muted-foreground" />
-                <span className="text-sm text-muted-foreground">مقاومة الثقب المسموحة</span>
+                <span className="text-sm text-muted-foreground">{t.allowablePunchingStress}</span>
               </div>
               <span className="text-sm font-bold px-3 py-1 rounded-md bg-muted" dir="ltr">
-                {d.vcp.toFixed(2)} كغ/سم²
+                {d.vcp.toFixed(2)} {t.kgCm2}
               </span>
             </div>
 
@@ -1092,10 +1112,10 @@ export default function Foundations({ data, onSave }: FoundationsProps) {
             <div className="flex items-center justify-between p-3 rounded-lg bg-background border">
               <div className="flex items-center gap-2">
                 <Ruler className="h-4 w-4 text-muted-foreground" />
-                <span className="text-sm text-muted-foreground">العمق الفعال d</span>
+                <span className="text-sm text-muted-foreground">{t.effectiveDepth}</span>
               </div>
               <span className="text-sm font-bold px-3 py-1 rounded-md bg-muted" dir="ltr">
-                {d.d.toFixed(2)} سم
+                {d.d.toFixed(2)} {t.cm}
               </span>
             </div>
 
@@ -1103,10 +1123,10 @@ export default function Foundations({ data, onSave }: FoundationsProps) {
             <div className="flex items-center justify-between p-3 rounded-lg bg-background border">
               <div className="flex items-center gap-2">
                 <Ruler className="h-4 w-4 text-muted-foreground" />
-                <span className="text-sm text-muted-foreground">محيط المقطع الحرج b₀</span>
+                <span className="text-sm text-muted-foreground">{t.criticalPerimeterB0}</span>
               </div>
               <span className="text-sm font-bold px-3 py-1 rounded-md bg-muted" dir="ltr">
-                {d.bo.toFixed(2)} سم
+                {d.bo.toFixed(2)} {t.cm}
               </span>
             </div>
 
@@ -1125,7 +1145,7 @@ export default function Foundations({ data, onSave }: FoundationsProps) {
                   <AlertTriangle className="h-5 w-5 text-red-600 dark:text-red-400" />
                 )}
                 <span className="text-sm font-bold">
-                  {d.safe ? 'الحصيرة آمنة ضد الثقب' : 'خطر: اختراق العمود للحصيرة'}
+                  {d.safe ? t.foundationSafe : t.foundationUnsafe}
                 </span>
               </div>
             </div>
@@ -1149,7 +1169,7 @@ export default function Foundations({ data, onSave }: FoundationsProps) {
             <div className="flex items-center justify-between p-3 rounded-lg bg-background border">
               <div className="flex items-center gap-2">
                 <Gauge className="h-4 w-4 text-muted-foreground" />
-                <span className="text-sm text-muted-foreground">الإجهاد الفعلي</span>
+                <span className="text-sm text-muted-foreground">{t.actualStress}</span>
               </div>
               <span
                 className={`text-sm font-bold px-3 py-1 rounded-md ${
@@ -1159,7 +1179,7 @@ export default function Foundations({ data, onSave }: FoundationsProps) {
                 }`}
                 dir="ltr"
               >
-                {d.actualStress.toFixed(2)} كغ/سم²
+                {d.actualStress.toFixed(2)} {t.kgCm2}
               </span>
             </div>
 
@@ -1167,10 +1187,10 @@ export default function Foundations({ data, onSave }: FoundationsProps) {
             <div className="flex items-center justify-between p-3 rounded-lg bg-background border">
               <div className="flex items-center gap-2">
                 <ShieldCheck className="h-4 w-4 text-muted-foreground" />
-                <span className="text-sm text-muted-foreground">الإجهاد المسموح</span>
+                <span className="text-sm text-muted-foreground">{t.allowableStress}</span>
               </div>
               <span className="text-sm font-bold px-3 py-1 rounded-md bg-muted" dir="ltr">
-                {d.allowableStress.toFixed(2)} كغ/سم²
+                {d.allowableStress.toFixed(2)} {t.kgCm2}
               </span>
             </div>
 
@@ -1189,7 +1209,7 @@ export default function Foundations({ data, onSave }: FoundationsProps) {
                   <AlertTriangle className="h-5 w-5 text-red-600 dark:text-red-400" />
                 )}
                 <span className="text-sm font-bold">
-                  {d.safe ? 'الأساس المستمر آمن' : 'الأساس المستمر غير آمن'}
+                  {d.safe ? t.foundationSafe : t.foundationUnsafe}
                 </span>
               </div>
             </div>
@@ -1199,7 +1219,7 @@ export default function Foundations({ data, onSave }: FoundationsProps) {
               <div className="flex items-start gap-2 p-3 rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800">
                 <ArrowRight className="h-4 w-4 text-amber-600 dark:text-amber-400 mt-0.5 shrink-0" />
                 <span className="text-sm text-amber-700 dark:text-amber-300">
-                  العرض الأدنى المطلوب: {d.Bmin} سم
+                  {t.widthWB}: {d.Bmin} {t.cm}
                 </span>
               </div>
             )}
@@ -1208,7 +1228,7 @@ export default function Foundations({ data, onSave }: FoundationsProps) {
             {d.safe && (
               <div className="p-3 rounded-lg bg-muted/50">
                 <div className="flex items-center justify-between mb-2">
-                  <span className="text-xs text-muted-foreground">نسبة الإجهاد المستخدم</span>
+                  <span className="text-xs text-muted-foreground">{t.stressUtilizationRatio}</span>
                   <span
                     className={`text-xs font-bold ${
                       d.safe ? 'text-emerald-600' : 'text-red-600'
@@ -1250,9 +1270,9 @@ export default function Foundations({ data, onSave }: FoundationsProps) {
             <div className="p-2 bg-white/20 rounded-lg backdrop-blur-sm">
               <Layers className="h-5 w-5" />
             </div>
-            <span>تقييم الأساسات</span>
+            <span>{t.foundationsTitle}</span>
             <span className="text-xs font-normal opacity-80 me-auto">
-              وفقاً للكود العربي السوري 2024
+              {t.foundationsCodeRef}
             </span>
           </CardTitle>
         </CardHeader>
@@ -1263,10 +1283,10 @@ export default function Foundations({ data, onSave }: FoundationsProps) {
               <Home className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
               <div>
                 <Label className="text-sm font-medium text-foreground/90">
-                  يوجد قبو / ملجأ
+                  {t.hasBasement}
                 </Label>
                 <p className="text-xs text-muted-foreground mt-0.5">
-                  تحديد ما إذا كان المبنى يحتوي على قبو أو ملجأ
+                  {t.hasBasement}
                 </p>
               </div>
             </div>
@@ -1285,12 +1305,12 @@ export default function Foundations({ data, onSave }: FoundationsProps) {
           {hasBasement && (
             <div className="mt-4 space-y-2 animate-in fade-in-0 slide-in-from-top-2 duration-200">
               <Label className="text-sm font-medium text-foreground/80">
-                وصف القبو / الملجأ
+                {t.basementDescription}
               </Label>
               <Textarea
                 value={basementDescription}
                 onChange={(e) => setBasementDescription(e.target.value)}
-                placeholder="أدخل وصف القبو أو الملجأ (الارتفاع، الاستخدام، الملاحظات)..."
+                placeholder={t.basementDescription}
                 className="min-h-[80px] text-sm resize-y"
                 rows={3}
                 disabled={!isEditing}
@@ -1310,17 +1330,17 @@ export default function Foundations({ data, onSave }: FoundationsProps) {
               <div className="p-2 bg-white/20 rounded-lg backdrop-blur-sm">
                 <Ruler className="h-5 w-5" />
               </div>
-              <span>بيانات الأساسات</span>
+              <span>{t.foundationsTitle}</span>
             </CardTitle>
             <div className="flex items-center gap-2">
               {safeCount > 0 && (
                 <span className="text-xs bg-emerald-400/30 px-2.5 py-1 rounded-full text-white font-medium">
-                  آمن: {safeCount}
+                  {t.safeCount} {safeCount}
                 </span>
               )}
               {unsafeCount > 0 && (
                 <span className="text-xs bg-red-400/30 px-2.5 py-1 rounded-full text-white font-medium">
-                  غير آمن: {unsafeCount}
+                  {t.unsafeCount} {unsafeCount}
                 </span>
               )}
             </div>
@@ -1332,20 +1352,20 @@ export default function Foundations({ data, onSave }: FoundationsProps) {
             <div className="flex items-center gap-2 mb-2">
               <Gauge className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
               <Label className="text-sm font-semibold text-foreground/90">
-                إجهاد التربة المسموح به (كغ/سم²)
+                {t.soilBearingLabel}
               </Label>
             </div>
             <p className="text-xs text-muted-foreground mb-3">
               {soilAllowable > 0
-                ? `يتم التعبئة تلقائياً من تقرير الإنشاءات (${soilAllowable} كغ/سم²). يمكنك تعديل القيمة يدوياً.`
-                : 'لم يتم العثور على بيانات إجهاد التربة في تقرير الإنشاءات. أدخل القيمة يدوياً.'}
+                ? `{t.autoFilledFromHammer} (${soilAllowable} {t.kgCm2})`
+                : t.fcNotFoundInReport}
             </p>
             <div className="max-w-xs">
               <Input
                 type="number"
                 value={allowableSoilStress}
                 onChange={(e) => setAllowableSoilStress(e.target.value)}
-                placeholder="مثال: 2.5"
+                placeholder={t.example250}
                 className="h-10 text-sm font-medium"
                 dir="ltr"
                 disabled={!isEditing}
@@ -1374,7 +1394,7 @@ export default function Foundations({ data, onSave }: FoundationsProps) {
                   <div className="flex items-center justify-between mb-3">
                     <div className="flex items-center gap-2">
                       <span className="text-xs font-semibold text-muted-foreground bg-muted px-2.5 py-1 rounded-md">
-                        أساس #{index + 1}
+                        {t.foundationName} #{index + 1}
                       </span>
                       <span className="text-xs px-2 py-0.5 rounded-md bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 font-medium">
                         {entry.type}
@@ -1393,7 +1413,7 @@ export default function Foundations({ data, onSave }: FoundationsProps) {
 
                   {/* Type Selector — always visible */}
                   <div className="mb-4 max-w-xs">
-                    <Label className="text-xs text-muted-foreground">نوع الأساس</Label>
+                    <Label className="text-xs text-muted-foreground">{t.foundationType}</Label>
                     <Select
                       value={entry.type}
                       onValueChange={(val) => updateEntry(entry.id, 'type', val)}
@@ -1417,11 +1437,11 @@ export default function Foundations({ data, onSave }: FoundationsProps) {
 
                   {/* Notes */}
                   <div className="mt-3 space-y-1">
-                    <Label className="text-xs text-muted-foreground">ملاحظات</Label>
+                    <Label className="text-xs text-muted-foreground">{t.notesLabel}</Label>
                     <Textarea
                       value={entry.notes}
                       onChange={(e) => updateEntry(entry.id, 'notes', e.target.value)}
-                      placeholder="ملاحظات إضافية..."
+                      placeholder={t.notesPlaceholder}
                       className="min-h-[50px] text-sm resize-y"
                       rows={1}
                       disabled={!isEditing}
@@ -1440,7 +1460,7 @@ export default function Foundations({ data, onSave }: FoundationsProps) {
               onClick={addEntry}
             >
               <Plus className="h-4 w-4 me-2" />
-              إضافة أساس جديد
+              {t.addFoundation}
             </Button>
           )}
         </CardContent>
@@ -1456,7 +1476,7 @@ export default function Foundations({ data, onSave }: FoundationsProps) {
               <div className="p-2 bg-white/20 rounded-lg backdrop-blur-sm">
                 <ShieldCheck className="h-5 w-5" />
               </div>
-              <span>نتائج فحص الأساسات</span>
+              <span>{t.compressionStressResults}</span>
             </CardTitle>
           </CardHeader>
           <CardContent className="p-6">
@@ -1465,13 +1485,13 @@ export default function Foundations({ data, onSave }: FoundationsProps) {
               {safeCount > 0 && (
                 <div className="flex items-center gap-1.5 text-sm font-medium text-emerald-700 dark:text-emerald-400 bg-emerald-100 dark:bg-emerald-900/30 px-3 py-1.5 rounded-lg">
                   <CheckCircle className="h-4 w-4" />
-                  <span>{safeCount} آمن</span>
+                  <span>{safeCount} {t.safeLabel}</span>
                 </div>
               )}
               {unsafeCount > 0 && (
                 <div className="flex items-center gap-1.5 text-sm font-medium text-red-700 dark:text-red-400 bg-red-100 dark:bg-red-900/30 px-3 py-1.5 rounded-lg">
                   <XCircle className="h-4 w-4" />
-                  <span>{unsafeCount} غير آمن</span>
+                  <span>{unsafeCount} {t.unsafeLabel}</span>
                 </div>
               )}
             </div>
@@ -1482,7 +1502,7 @@ export default function Foundations({ data, onSave }: FoundationsProps) {
                 const result = results[index];
                 if (!result?.hasResult) return null;
 
-                const entryName = entry.name || `أساس #${index + 1}`;
+                const entryName = entry.name || `${t.foundationName} #${index + 1}`;
                 const entryIsSafe = isResultSafe(result);
 
                 return (
@@ -1514,7 +1534,7 @@ export default function Foundations({ data, onSave }: FoundationsProps) {
                           <span className="text-sm font-semibold">{entryName}</span>
                           <span className="text-xs text-muted-foreground block">
                             {entry.type}
-                            {entry.foundationDepth ? ` — عمق التأسيس: ${entry.foundationDepth} سم` : ''}
+                            {entry.foundationDepth ? ` — ${t.foundationDepthLabel}: ${entry.foundationDepth} ${t.cm}` : ''}
                           </span>
                         </div>
                       </div>
@@ -1541,7 +1561,7 @@ export default function Foundations({ data, onSave }: FoundationsProps) {
             className="border-emerald-300 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 px-8"
           >
             <Edit3 className="h-4 w-4 me-2" />
-            تعديل البيانات
+            {t.editData}
           </Button>
         ) : (
           <Button
@@ -1549,7 +1569,7 @@ export default function Foundations({ data, onSave }: FoundationsProps) {
             className="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white shadow-md hover:shadow-lg transition-all duration-200 px-8"
           >
             <Save className="h-4 w-4 me-2" />
-            حفظ البيانات
+            {t.saveData}
           </Button>
         )}
       </div>

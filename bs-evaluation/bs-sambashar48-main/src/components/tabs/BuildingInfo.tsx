@@ -33,14 +33,14 @@ interface BuildingInfoProps {
 }
 
 // ─── Evaluation Purpose Options ──────────────────────────────────────────────
-const EVALUATION_PURPOSE_OPTIONS = [
+const getEvaluationPurposeOptions = (t: Record<string, string>) => [
   {
     value: 'تقييم وضع راهن (تسوية مخالفة)',
-    label: 'تقييم وضع راهن (تسوية مخالفة)',
+    label: t.evaluationPurposeCurrent,
   },
   {
     value: 'إضافة طابق للمنشأة',
-    label: 'إضافة طابق للمنشأة',
+    label: t.evaluationPurposeAddFloor,
   },
 ];
 
@@ -80,7 +80,7 @@ function hydrateFormData(data: Record<string, unknown>): Record<string, string> 
 
 // ─── Component ───────────────────────────────────────────────────────────────
 export default function BuildingInfo({ data, onSave }: BuildingInfoProps) {
-  const { isRTL } = useTranslation();
+  const { t, isRTL } = useTranslation();
 
   // Form fields state
   const [formData, setFormData] = useState<Record<string, string>>(() =>
@@ -135,7 +135,7 @@ export default function BuildingInfo({ data, onSave }: BuildingInfoProps) {
   const handleSave = () => {
     persist();
     setIsEditing(false);
-    toast.success('تم حفظ البيانات بنجاح');
+    toast.success(t.dataSaved);
   };
 
   /** Enter edit mode */
@@ -154,7 +154,7 @@ export default function BuildingInfo({ data, onSave }: BuildingInfoProps) {
       const remaining = maxPhotos - sitePhotos.length;
 
       if (remaining <= 0) {
-        toast.error(`الحد الأقصى ${maxPhotos} صور`);
+        toast.error(t.photoLimit.replace('{n}', String(maxPhotos)));
         return;
       }
 
@@ -166,13 +166,13 @@ export default function BuildingInfo({ data, onSave }: BuildingInfoProps) {
       for (const file of filesToProcess) {
         // Validate type
         if (!ALLOWED_IMAGE_TYPES.includes(file.type)) {
-          toast.error(`نوع الملف "${file.name}" غير مدعوم`);
+          toast.error(t.fileTypeUnsupported.replace('{name}', file.name));
           continue;
         }
 
         // Validate size
         if (file.size > MAX_IMAGE_SIZE) {
-          toast.error(`حجم الصورة "${file.name}" يتجاوز 1 ميغابايت`);
+          toast.error(t.fileTooLarge.replace('{name}', file.name));
           continue;
         }
 
@@ -181,13 +181,13 @@ export default function BuildingInfo({ data, onSave }: BuildingInfoProps) {
           const base64 = await new Promise<string>((resolve, reject) => {
             const reader = new FileReader();
             reader.onload = () => resolve(reader.result as string);
-            reader.onerror = () => reject(new Error('فشل قراءة الملف'));
+            reader.onerror = () => reject(new Error(t.fileReadFailed));
             reader.readAsDataURL(file);
           });
 
           newBase64Array.push(base64);
         } catch {
-          toast.error(`فشل تحميل "${file.name}"`);
+          toast.error(t.fileUploadFailed.replace('{name}', file.name));
         }
       }
 
@@ -204,7 +204,7 @@ export default function BuildingInfo({ data, onSave }: BuildingInfoProps) {
       // Reset file input
       if (fileInputRef.current) fileInputRef.current.value = '';
     },
-    [sitePhotos, formData, isEditing, onSave]
+    [sitePhotos, formData, isEditing, onSave, t]
   );
 
   const handleRemovePhoto = useCallback(
@@ -254,6 +254,8 @@ export default function BuildingInfo({ data, onSave }: BuildingInfoProps) {
 
   // ─── Render ────────────────────────────────────────────────────────────────
 
+  const EVALUATION_PURPOSE_OPTIONS = getEvaluationPurposeOptions(t);
+
   return (
     <div className="space-y-6" dir={isRTL ? 'rtl' : 'ltr'}>
       {/* ═══ Section 1: Owner & Building Data ═══ */}
@@ -263,25 +265,25 @@ export default function BuildingInfo({ data, onSave }: BuildingInfoProps) {
             <div className="p-2 bg-white/20 rounded-lg backdrop-blur-sm">
               <Building2 className="h-5 w-5" />
             </div>
-            <span>بيانات المنشأة</span>
+            <span>{t.buildingDataTitle}</span>
           </CardTitle>
         </CardHeader>
         <CardContent className="p-6">
           {renderSectionHeading(
             <FileText className="w-4.5 h-4.5 text-emerald-600 dark:text-emerald-400" />,
-            'بيانات المالك والمنشأة'
+            t.ownerAndBuildingData
           )}
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {renderTextField('اسم مالك المنشأة', 'ownerName', 'text', 'أدخل اسم المالك')}
-            {renderTextField('استخدام المنشأة', 'buildingUsage', 'text', 'مثال: سكني، تجاري')}
-            {renderTextField('عمر المنشأة', 'buildingAge', 'number', 'بالسنوات')}
-            {renderTextField('عدد الطوابق', 'numberOfFloors', 'number', '0')}
-            {renderTextField('رقم العقار', 'propertyNumber', 'text', 'أدخل رقم العقار')}
-            {renderTextField('المنطقة العقارية', 'propertyArea', 'text', 'أدخل المنطقة')}
-            {renderTextField('رقم الترخيص', 'licenseNumber', 'text', 'أدخل رقم الترخيص')}
+            {renderTextField(t.ownerName, 'ownerName', 'text', t.enterOwnerName)}
+            {renderTextField(t.buildingUsageLabel, 'buildingUsage', 'text', t.buildingUsagePlaceholder)}
+            {renderTextField(t.buildingAgeLabel, 'buildingAge', 'number', t.buildingAgePlaceholder)}
+            {renderTextField(t.numberOfFloorsLabel, 'numberOfFloors', 'number', '0')}
+            {renderTextField(t.propertyNumber, 'propertyNumber', 'text', t.enterPropertyNumber)}
+            {renderTextField(t.propertyArea, 'propertyArea', 'text', t.enterPropertyArea)}
+            {renderTextField(t.licenseNumber, 'licenseNumber', 'text', t.enterLicenseNumber)}
             {renderTextField(
-              'تاريخ الترخيص السابق',
+              t.previousLicenseDate,
               'previousLicenseDate',
               'date'
             )}
@@ -296,7 +298,7 @@ export default function BuildingInfo({ data, onSave }: BuildingInfoProps) {
             <div className="p-2 bg-white/20 rounded-lg backdrop-blur-sm">
               <Building2 className="h-5 w-5" />
             </div>
-            <span>مكونات المنشأة القائمة</span>
+            <span>{t.existingComponentsTitle}</span>
           </CardTitle>
         </CardHeader>
         <CardContent className="p-6">
@@ -307,13 +309,13 @@ export default function BuildingInfo({ data, onSave }: BuildingInfoProps) {
               onBlur={() => {
                 if (isEditing) persist();
               }}
-              placeholder="صف مكونات المنشأة القائمة بالتفصيل..."
+              placeholder={t.existingComponentsPlaceholder}
               disabled={disabled}
               className="min-h-[120px] resize-y"
               dir={isRTL ? 'rtl' : 'ltr'}
             />
             <p className="text-xs text-gray-400">
-              أدخل وصفاً تفصيلياً لمكونات المنشأة القائمة
+              {t.existingComponentsHint}
             </p>
           </div>
         </CardContent>
@@ -326,20 +328,20 @@ export default function BuildingInfo({ data, onSave }: BuildingInfoProps) {
             <div className="p-2 bg-white/20 rounded-lg backdrop-blur-sm">
               <FileText className="h-5 w-5" />
             </div>
-            <span>بيانات التقييم</span>
+            <span>{t.evaluationDataTitle}</span>
           </CardTitle>
         </CardHeader>
         <CardContent className="p-6 space-y-5">
           {renderSectionHeading(
             <Camera className="w-4.5 h-4.5 text-emerald-600 dark:text-emerald-400" />,
-            'بيانات التقييم'
+            t.evaluationDataTitle
           )}
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {/* Evaluation Date */}
             <div className="space-y-1.5">
               <Label className="text-sm font-medium text-foreground/80">
-                تاريخ التقييم
+                {t.evaluationDateLabel}
               </Label>
               <Input
                 type="date"
@@ -357,7 +359,7 @@ export default function BuildingInfo({ data, onSave }: BuildingInfoProps) {
             {/* Evaluation Purpose */}
             <div className="space-y-1.5">
               <Label className="text-sm font-medium text-foreground/80">
-                غاية التقييم
+                {t.evaluationPurposeLabel}
               </Label>
               <Select
                 value={formData.evaluationPurpose || ''}
@@ -365,7 +367,7 @@ export default function BuildingInfo({ data, onSave }: BuildingInfoProps) {
                 disabled={disabled}
               >
                 <SelectTrigger className="w-full">
-                  <SelectValue placeholder="اختر غاية التقييم" />
+                  <SelectValue placeholder={t.chooseEvaluationPurpose} />
                 </SelectTrigger>
                 <SelectContent>
                   {EVALUATION_PURPOSE_OPTIONS.map((opt) => (
@@ -381,7 +383,7 @@ export default function BuildingInfo({ data, onSave }: BuildingInfoProps) {
           {/* Site Description */}
           <div className="space-y-2">
             <Label className="text-sm font-medium text-foreground/80">
-              وصف الموقع العام
+              {t.siteDescription}
             </Label>
             <Textarea
               value={formData.siteDescription || ''}
@@ -389,7 +391,7 @@ export default function BuildingInfo({ data, onSave }: BuildingInfoProps) {
               onBlur={() => {
                 if (isEditing) persist();
               }}
-              placeholder="صف الموقع العام للمنشأة..."
+              placeholder={t.siteDescriptionPlaceholder}
               disabled={disabled}
               className="min-h-[100px] resize-y"
               dir={isRTL ? 'rtl' : 'ltr'}
@@ -400,7 +402,7 @@ export default function BuildingInfo({ data, onSave }: BuildingInfoProps) {
           <div className="space-y-3">
             <div className="flex items-center justify-between">
               <Label className="text-sm font-medium text-foreground/80">
-                تحميل صورة الموقع العام
+                {t.uploadSitePhoto}
               </Label>
               <span className="text-xs text-gray-400">
                 {sitePhotos.length} / {IMAGE_LIMITS.sitePhotos}
@@ -424,8 +426,8 @@ export default function BuildingInfo({ data, onSave }: BuildingInfoProps) {
                   )}
                   <span className="text-sm text-gray-400">
                     {isUploading
-                      ? 'جارٍ التحميل...'
-                      : 'اضغط لتحميل صورة الموقع العام'}
+                      ? t.uploading
+                      : t.clickToUpload}
                   </span>
                   <input
                     ref={fileInputRef}
@@ -438,7 +440,8 @@ export default function BuildingInfo({ data, onSave }: BuildingInfoProps) {
                   />
                 </label>
                 <p className="text-xs text-gray-400 mt-1.5">
-                  الحد الأقصى {IMAGE_LIMITS.sitePhotos} صور، حجم كل صورة لا يتجاوز 1 ميغابايت
+                  {t.maxPhotos.replace('{n}', String(IMAGE_LIMITS.sitePhotos))}
+                  {' '}
                   (JPEG, PNG, WebP, GIF)
                 </p>
               </div>
@@ -454,21 +457,21 @@ export default function BuildingInfo({ data, onSave }: BuildingInfoProps) {
                   >
                     <img
                       src={src}
-                      alt={`صورة الموقع ${index + 1}`}
+                      alt={`${t.sitePhoto} ${index + 1}`}
                       className="w-full h-full object-cover"
                     />
                     {isEditing && (
                       <button
                         onClick={() => handleRemovePhoto(index)}
                         className="absolute top-1.5 left-1.5 p-1 bg-red-500 hover:bg-red-600 text-white rounded-full shadow-lg transition-colors"
-                        aria-label="حذف الصورة"
+                        aria-label={t.deletePhoto}
                       >
                         <X className="h-3.5 w-3.5" />
                       </button>
                     )}
                     <div className="absolute bottom-0 inset-x-0 bg-black/50 px-2 py-1">
                       <p className="text-[10px] text-white/90">
-                        صورة {index + 1}
+                        {t.photo} {index + 1}
                       </p>
                     </div>
                   </div>
@@ -486,7 +489,7 @@ export default function BuildingInfo({ data, onSave }: BuildingInfoProps) {
             <div className="p-2 bg-white/20 rounded-lg backdrop-blur-sm">
               <FileText className="h-5 w-5" />
             </div>
-            <span>ملاحظات عامة</span>
+            <span>{t.generalNotesTitle}</span>
           </CardTitle>
         </CardHeader>
         <CardContent className="p-6">
@@ -497,13 +500,13 @@ export default function BuildingInfo({ data, onSave }: BuildingInfoProps) {
               onBlur={() => {
                 if (isEditing) persist();
               }}
-              placeholder="أدخل الملاحظات العامة هنا..."
+              placeholder={t.generalNotesPlaceholder}
               disabled={disabled}
               className="min-h-[150px] resize-y"
               dir={isRTL ? 'rtl' : 'ltr'}
             />
             <p className="text-xs text-gray-400">
-              أدخل أي ملاحظات عامة إضافية حول المنشأة
+              {t.generalNotesHint}
             </p>
           </div>
         </CardContent>
@@ -518,7 +521,7 @@ export default function BuildingInfo({ data, onSave }: BuildingInfoProps) {
             className="gap-2 px-6 border-emerald-300 text-emerald-700 hover:bg-emerald-50 hover:text-emerald-800"
           >
             <Edit3 className="h-4 w-4" />
-            تعديل البيانات
+            {t.editData}
           </Button>
         ) : (
           <Button
@@ -526,7 +529,7 @@ export default function BuildingInfo({ data, onSave }: BuildingInfoProps) {
             className="gap-2 px-8 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white shadow-md hover:shadow-lg transition-all duration-200"
           >
             <Save className="h-4 w-4" />
-            حفظ البيانات
+            {t.saveData}
           </Button>
         )}
       </div>

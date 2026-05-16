@@ -82,7 +82,7 @@ const DEFAULT_DATA: TechnicalNotesData = {
 };
 
 function safeAssign<T extends Record<string, string>>(target: T, source: unknown): T {
-  const result = { ...target };
+  const result: Record<string, string> = { ...target };
   if (source && typeof source === 'object') {
     Object.keys(target).forEach((key) => {
       const val = (source as Record<string, unknown>)[key];
@@ -91,7 +91,7 @@ function safeAssign<T extends Record<string, string>>(target: T, source: unknown
       }
     });
   }
-  return result;
+  return result as T;
 }
 
 function computeInitialData(data: Record<string, unknown>): TechnicalNotesData {
@@ -122,7 +122,7 @@ function fileToBase64(file: File): Promise<string> {
 // ===================== Main Component =====================
 
 export default function TechnicalNotes({ data, onSave }: TechnicalNotesProps) {
-  const { isRTL } = useTranslation();
+  const { t, isRTL } = useTranslation();
 
   const [formData, setFormData] = useState<TechnicalNotesData>(() => computeInitialData(data));
   const [isEditing, setIsEditing] = useState(false);
@@ -257,9 +257,9 @@ export default function TechnicalNotes({ data, onSave }: TechnicalNotesProps) {
           disabled={images.length >= maxImages || !isEditing}
         >
           <Camera className="w-4 h-4" />
-          إضافة صور ({images.length}/{maxImages})
+          {t.addPhotos} ({images.length}/{maxImages})
         </Button>
-        <span className="text-[10px] text-gray-400">الحد الأقصى 1MB لكل صورة</span>
+        <span className="text-[10px] text-gray-400">{t.maxPhotoSize}</span>
       </div>
       <input
         ref={fileInputRef}
@@ -278,7 +278,7 @@ export default function TechnicalNotes({ data, onSave }: TechnicalNotesProps) {
             >
               <img
                 src={img}
-                alt={`صورة ${idx + 1}`}
+                alt={`${t.photo} ${idx + 1}`}
                 className="w-full h-full object-cover"
               />
               {isEditing && (
@@ -306,45 +306,45 @@ export default function TechnicalNotes({ data, onSave }: TechnicalNotesProps) {
           <div className="p-2 bg-white/20 rounded-lg backdrop-blur-sm">
             <Building2 className="h-5 w-5" />
           </div>
-          <span>ملاحظات معمارية</span>
+          <span>{t.architecturalNotesSection}</span>
         </CardTitle>
       </CardHeader>
       <CardContent className="p-5">
         <div className="space-y-4">
           {renderTextareaField(
-            'آثار رطوبة في الجدران والأسقف',
+            t.moistureTraces,
             formData.architecturalNotes.humidityMarks,
             (v) => updateArchitectural('humidityMarks', v),
-            'صف وجود آثار رطوبة وموقعها ومدى انتشارها...',
-            'حدد الموقع ومدى الانتشار'
+            t.moisturePlaceholder,
+            t.moistureHint
           )}
           {renderTextareaField(
-            'تسريب مياه ظاهر',
+            t.visibleLeak,
             formData.architecturalNotes.visibleWaterLeakage,
             (v) => updateArchitectural('visibleWaterLeakage', v),
-            'صف التسريبات الظاهرة ومصدرها...',
-            'حدد المصدر والشدة والموقع'
+            t.leakPlaceholder,
+            t.leakHint
           )}
           {renderTextareaField(
-            'ضعف التهوية الطبيعية',
+            t.poorVentilation,
             formData.architecturalNotes.poorVentilation,
             (v) => updateArchitectural('poorVentilation', v),
-            'صف حالة التهوية في المبنى...',
-            'حدد المواقع ذات التهوية الضعيفة'
+            t.ventilationPlaceholder,
+            t.ventilationHint
           )}
           {renderTextareaField(
-            'وضع العزل الحراري والمائي',
+            t.insulationCondition,
             formData.architecturalNotes.insulationCondition,
             (v) => updateArchitectural('insulationCondition', v),
-            'صف حالة العزل الحراري والمائي...',
-            'نوع العزل وحالته ومدى فعاليته'
+            t.insulationPlaceholder,
+            t.insulationHint
           )}
           {renderTextareaField(
-            'حالة الواجهات الخارجية والإكساءات',
+            t.facadeCondition,
             formData.architecturalNotes.exteriorCladding,
             (v) => updateArchitectural('exteriorCladding', v),
-            'صف حالة الواجهات والإكساءات الخارجية...',
-            'نوع الإكساء وحالته وتلفياته'
+            t.facadePlaceholder,
+            t.facadeHint
           )}
         </div>
       </CardContent>
@@ -358,38 +358,38 @@ export default function TechnicalNotes({ data, onSave }: TechnicalNotesProps) {
           <div className="p-2 bg-white/20 rounded-lg backdrop-blur-sm">
             <HardHat className="h-5 w-5" />
           </div>
-          <span>ملاحظات إنشائية</span>
+          <span>{t.structuralNotesSection}</span>
         </CardTitle>
       </CardHeader>
       <CardContent className="p-5">
         <div className="space-y-4">
           {renderTextareaField(
-            'صدأ ظاهر في حديد التسليح',
+            t.visibleRust,
             formData.structuralNotes.visibleRebarCorrosion,
             (v) => updateStructural('visibleRebarCorrosion', v),
-            'صف وجود صدأ في حديد التسليح...',
-            'حدد الموقع ومدى الانتشار'
+            t.rustPlaceholder,
+            t.rustHint
           )}
           {renderTextareaField(
-            'هبوط في البلاطات والجوائز',
+            t.slabSettlement,
             formData.structuralNotes.slabBeamSettlement,
             (v) => updateStructural('slabBeamSettlement', v),
-            'صف وجود هبوط في البلاطات أو الجوائز...',
-            'حدد مقدار الهبوط والموقع'
+            t.settlementPlaceholder,
+            t.settlementHint
           )}
           {renderTextareaField(
-            'ميلان في الأعمدة والجدران',
+            t.columnInclination,
             formData.structuralNotes.columnWallTilt,
             (v) => updateStructural('columnWallTilt', v),
-            'صف وجود ميلان في الأعمدة أو الجدران...',
-            'حدد مقدار الميلان واتجاهه'
+            t.inclinationPlaceholder,
+            t.inclinationHint
           )}
           {renderTextareaField(
-            'تساقط وتقشر الغطاء البيتوني',
+            t.concreteCoverSpalling,
             formData.structuralNotes.concreteCoverSpalling,
             (v) => updateStructural('concreteCoverSpalling', v),
-            'صف تساقط أو تقشر الغطاء البيتوني...',
-            'حدد الموقع والمساحة المتأثرة'
+            t.spallingPlaceholder,
+            t.spallingHint
           )}
         </div>
       </CardContent>
@@ -403,31 +403,31 @@ export default function TechnicalNotes({ data, onSave }: TechnicalNotesProps) {
           <div className="p-2 bg-white/20 rounded-lg backdrop-blur-sm">
             <Zap className="h-5 w-5" />
           </div>
-          <span>ملاحظات كهربائية</span>
+          <span>{t.electricalNotesSection}</span>
         </CardTitle>
       </CardHeader>
       <CardContent className="p-5">
         <div className="space-y-4">
           {renderTextareaField(
-            'حالة التمديدات الكهربائية',
+            t.electricalCondition,
             formData.electricalNotes.electricalInstallations,
             (v) => updateElectrical('electricalInstallations', v),
-            'صف حالة التمديدات الكهربائية...',
-            'نوع التمديدات وحالتها العامة'
+            t.electricalConditionPlaceholder,
+            t.electricalConditionHint
           )}
           {renderTextareaField(
-            'حالة منظومة الإطفاء',
+            t.fireSystemCondition,
             formData.electricalNotes.fireSuppression,
             (v) => updateElectrical('fireSuppression', v),
-            'صف حالة منظومة الإطفاء...',
-            'نوع المنظومة وحالتها ومدى صلاحيتها'
+            t.fireSystemConditionPlaceholder,
+            t.fireSystemConditionHint
           )}
           {renderTextareaField(
-            'حالة منظومة المراقبة',
+            t.monitoringCondition,
             formData.electricalNotes.surveillanceSystem,
             (v) => updateElectrical('surveillanceSystem', v),
-            'صف حالة منظومة المراقبة والكاميرات...',
-            'عدد الكاميرات وحالتها وتغطيتها'
+            t.monitoringConditionPlaceholder,
+            t.monitoringConditionHint
           )}
         </div>
       </CardContent>
@@ -441,16 +441,16 @@ export default function TechnicalNotes({ data, onSave }: TechnicalNotesProps) {
           <div className="p-2 bg-white/20 rounded-lg backdrop-blur-sm">
             <Droplets className="h-5 w-5" />
           </div>
-          <span>ملاحظات صحية</span>
+          <span>{t.plumbingNotesSection}</span>
         </CardTitle>
       </CardHeader>
       <CardContent className="p-5">
         {renderTextareaField(
-          'حالة التمديدات الصحية',
+          t.plumbingCondition,
           formData.plumbingNotes.plumbingInstallations,
           (v) => updatePlumbing('plumbingInstallations', v),
-          'صف حالة التمديدات الصحية...',
-          'نوع المواسير وحالتها العامة'
+          t.plumbingConditionPlaceholder,
+          t.plumbingConditionHint
         )}
       </CardContent>
     </Card>
@@ -467,7 +467,7 @@ export default function TechnicalNotes({ data, onSave }: TechnicalNotesProps) {
             <div className="p-2 bg-white/20 rounded-lg backdrop-blur-sm">
               <ClipboardCheck className="h-5 w-5" />
             </div>
-            <span>الملاحظات الفنية</span>
+            <span>{t.technicalNotesTitle}</span>
           </CardTitle>
         </CardHeader>
       </Card>
@@ -503,22 +503,22 @@ export default function TechnicalNotes({ data, onSave }: TechnicalNotesProps) {
                 <circle cx="12" cy="10" r="3" />
               </svg>
             </div>
-            <span>الموقع والصور</span>
+            <span>{t.locationAndPhotos}</span>
           </CardTitle>
         </CardHeader>
         <CardContent className="p-5 space-y-4">
           {/* Location Input */}
           <div className="space-y-1.5">
-            <Label className="text-xs font-medium text-foreground/70">موقع الملاحظة ووصفها</Label>
+            <Label className="text-xs font-medium text-foreground/70">{t.observationLocation}</Label>
             <Input
               value={formData.location}
               onChange={(e) => updateField('location', e.target.value)}
-              placeholder="حدد موقع الملاحظة بدقة..."
+              placeholder={t.observationLocationPlaceholder}
               className="w-full text-sm"
               dir={isRTL ? 'rtl' : 'ltr'}
               disabled={!isEditing}
             />
-            <p className="text-[10px] text-gray-400">حدد موقع كل ملاحظة بدقة لسهولة المتابعة</p>
+            <p className="text-[10px] text-gray-400">{t.observationLocationHint}</p>
           </div>
 
           {/* Photos */}
@@ -553,20 +553,20 @@ export default function TechnicalNotes({ data, onSave }: TechnicalNotesProps) {
                 <polyline points="10 9 9 9 8 9" />
               </svg>
             </div>
-            <span>التوصيات والمقترحات</span>
+            <span>{t.recommendationsAndSuggestions}</span>
           </CardTitle>
         </CardHeader>
         <CardContent className="p-5">
           <Textarea
             value={formData.recommendations}
             onChange={(e) => updateField('recommendations', e.target.value)}
-            placeholder="أدخل التوصيات والمقترحات بناءً على الملاحظات الفنية..."
+            placeholder={t.recommendationsPlaceholder}
             className="min-h-[120px] resize-y text-sm"
             dir={isRTL ? 'rtl' : 'ltr'}
             disabled={!isEditing}
           />
           <p className="text-[10px] text-gray-400 mt-1.5">
-            اكتب التوصيات والمقترحات اللازمة لمعالجة الملاحظات المسجلة
+            {t.recommendationsHint}
           </p>
         </CardContent>
       </Card>
@@ -581,14 +581,14 @@ export default function TechnicalNotes({ data, onSave }: TechnicalNotesProps) {
               className="gap-2 text-sm"
             >
               <X className="w-4 h-4" />
-              إلغاء
+              {t.cancel}
             </Button>
             <Button
               onClick={handleSave}
               className="gap-2 text-sm bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white shadow-md hover:shadow-lg transition-all duration-200 px-6"
             >
               <Save className="w-4 h-4" />
-              حفظ البيانات
+              {t.saveData}
             </Button>
           </>
         ) : (
@@ -597,7 +597,7 @@ export default function TechnicalNotes({ data, onSave }: TechnicalNotesProps) {
             className="gap-2 text-sm bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white shadow-md hover:shadow-lg transition-all duration-200 px-6"
           >
             <Pencil className="w-4 h-4" />
-            تعديل البيانات
+            {t.editData}
           </Button>
         )}
       </div>

@@ -54,21 +54,21 @@ interface SectionOption {
 
 // ======== Section Options ========
 const SECTION_OPTIONS: SectionOption[] = [
-  { id: 'buildingData', label: 'بيانات المنشأة', dataKey: 'building_data', icon: <Building2 className="h-4 w-4" /> },
-  { id: 'architecturalReport', label: 'التقرير الوصفي المعماري', dataKey: 'architectural_report', icon: <DraftingCompass className="h-4 w-4" /> },
-  { id: 'structuralReport', label: 'التقرير الفني الانشائي', dataKey: 'structural_report', icon: <HardHat className="h-4 w-4" /> },
-  { id: 'foundations', label: 'الأساسات', dataKey: 'foundations', icon: <Layers className="h-4 w-4" /> },
-  { id: 'columnsWalls', label: 'الأعمدة والجدران', dataKey: 'columns_walls', icon: <Columns3 className="h-4 w-4" /> },
-  { id: 'beamSlab', label: 'الجوائز والبلاطات', dataKey: 'beam_slab', icon: <Palette className="h-4 w-4" /> },
-  { id: 'electricalReport', label: 'التقرير الكهربائي', dataKey: 'electrical', icon: <PlugZap className="h-4 w-4" /> },
-  { id: 'plumbingReport', label: 'التقرير الصحي', dataKey: 'plumbing', icon: <Pipette className="h-4 w-4" /> },
-  { id: 'technicalNotes', label: 'الملاحظات الفنية', dataKey: 'technical_notes', icon: <ClipboardList className="h-4 w-4" /> },
-  { id: 'finalReport', label: 'التقرير الفني النهائي', dataKey: 'final_report', icon: <FileText className="h-4 w-4" /> },
+  { id: 'buildingData', label: 'buildingData', dataKey: 'building_data', icon: <Building2 className="h-4 w-4" /> },
+  { id: 'architecturalReport', label: 'architecturalReport', dataKey: 'architectural_report', icon: <DraftingCompass className="h-4 w-4" /> },
+  { id: 'structuralReport', label: 'structuralReport', dataKey: 'structural_report', icon: <HardHat className="h-4 w-4" /> },
+  { id: 'foundations', label: 'foundations', dataKey: 'foundations', icon: <Layers className="h-4 w-4" /> },
+  { id: 'columnsWalls', label: 'columnsWalls', dataKey: 'columns_walls', icon: <Columns3 className="h-4 w-4" /> },
+  { id: 'beamSlab', label: 'beamSlab', dataKey: 'beam_slab', icon: <Palette className="h-4 w-4" /> },
+  { id: 'electricalReport', label: 'electricalReport', dataKey: 'electrical', icon: <PlugZap className="h-4 w-4" /> },
+  { id: 'plumbingReport', label: 'plumbingReport', dataKey: 'plumbing', icon: <Pipette className="h-4 w-4" /> },
+  { id: 'technicalNotes', label: 'technicalNotes', dataKey: 'technical_notes', icon: <ClipboardList className="h-4 w-4" /> },
+  { id: 'finalReport', label: 'finalReport', dataKey: 'final_report', icon: <FileText className="h-4 w-4" /> },
 ];
 
 // ======== Component ========
 export default function GenerateReports({ projectData }: GenerateReportsProps) {
-  const { isRTL } = useTranslation();
+  const { t, isRTL } = useTranslation();
   const {
     reportPreferences,
     setReportPreferences,
@@ -84,6 +84,23 @@ export default function GenerateReports({ projectData }: GenerateReportsProps) {
   const [fontLoading, setFontLoading] = useState(false);
   const [generationProgress, setGenerationProgress] = useState<string>('');
   const abortRef = useRef(false);
+
+  // ======== Section label mapping (translate display) ========
+  const getSectionLabel = (sectionId: string): string => {
+    const map: Record<string, string> = {
+      buildingData: t.buildingDataTitle,
+      architecturalReport: t.architecturalDescReport,
+      structuralReport: t.structuralTechnicalReport,
+      foundations: t.foundationsTitle,
+      columnsWalls: t.columnsWallsTitle,
+      beamSlab: t.beamSlabGeneralParams,
+      electricalReport: t.electricalReportTitle,
+      plumbingReport: t.plumbingReportTitle,
+      technicalNotes: t.technicalNotesTitle,
+      finalReport: t.finalReportTitle,
+    };
+    return map[sectionId] || sectionId;
+  };
 
   // Auto-save preferences on change
   React.useEffect(() => {
@@ -147,7 +164,7 @@ export default function GenerateReports({ projectData }: GenerateReportsProps) {
         if (!opt) return null;
         return {
           id: opt.id,
-          label: opt.label,
+          label: getSectionLabel(opt.id),
           dataKey: opt.dataKey,
           number: idx + 1,
         };
@@ -161,42 +178,42 @@ export default function GenerateReports({ projectData }: GenerateReportsProps) {
       sections,
       projectData,
     };
-  }, [selectedSections, companyName, reportHeader, reportFooter, projectData]);
+  }, [selectedSections, companyName, reportHeader, reportFooter, projectData, t]);
 
   // Print preview (browser native)
   const handlePrintPreview = useCallback(() => {
     if (selectedSections.length === 0) {
-      toast.error('يرجى اختيار قسم واحد على الأقل');
+      toast.error(t.selectAtLeastOne);
       return;
     }
     window.print();
-  }, [selectedSections]);
+  }, [selectedSections, t]);
 
   // Download PDF using @react-pdf/renderer
   const handleDownloadPDF = useCallback(async () => {
     if (selectedSections.length === 0) {
-      toast.error('يرجى اختيار قسم واحد على الأقل');
+      toast.error(t.selectAtLeastOne);
       return;
     }
 
     abortRef.current = false;
     setIsGenerating(true);
-    setGenerationProgress('جاري تحميل الخط العربي...');
+    setGenerationProgress(t.loadingArabicFont);
 
     try {
       // Step 1: Load Arabic font
       if (!isFontLoaded()) {
-        setGenerationProgress('جاري تحميل الخط العربي...');
+        setGenerationProgress(t.loadingArabicFont);
         const fontOk = await loadArabicFont();
         if (!fontOk) {
-          throw new Error('فشل تحميل الخط العربي — تأكد من اتصال الإنترنت وأعد المحاولة');
+          throw new Error(t.arabicFontFailed);
         }
       }
 
       if (abortRef.current) return;
 
       // Step 2: Build config
-      setGenerationProgress('جاري تجهيز بيانات التقرير...');
+      setGenerationProgress(t.preparingData);
       const config = buildPDFConfig();
 
       // Small delay to let UI update
@@ -205,18 +222,18 @@ export default function GenerateReports({ projectData }: GenerateReportsProps) {
       if (abortRef.current) return;
 
       // Step 3: Generate PDF
-      setGenerationProgress('جاري إنشاء ملف PDF...');
+      setGenerationProgress(t.creatingPdf);
       await downloadPDF(config);
 
       if (abortRef.current) return;
 
       // Success
       setGenerationProgress('');
-      toast.success('تم إنشاء وتحميل ملف PDF بنجاح', {
+      toast.success(t.pdfCreatedSuccess, {
         icon: <CheckCircle2 className="h-4 w-4 text-emerald-600" />,
       });
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'حدث خطأ غير متوقع أثناء إنشاء ملف PDF';
+      const message = err instanceof Error ? err.message : t.pdfCreationError;
       console.error('[GenerateReports] PDF generation failed:', err);
       toast.error(message, {
         icon: <AlertCircle className="h-4 w-4 text-red-600" />,
@@ -226,7 +243,7 @@ export default function GenerateReports({ projectData }: GenerateReportsProps) {
       setIsGenerating(false);
       setGenerationProgress('');
     }
-  }, [selectedSections, buildPDFConfig]);
+  }, [selectedSections, buildPDFConfig, t]);
 
   const labelClass = 'text-sm font-medium text-foreground/80';
   const helperClass = 'text-xs text-muted-foreground';
@@ -240,18 +257,18 @@ export default function GenerateReports({ projectData }: GenerateReportsProps) {
             <div className="p-2 bg-white/20 rounded-lg backdrop-blur-sm">
               <Settings2 className="h-5 w-5" />
             </div>
-            <span>توليد التقارير</span>
+            <span>{t.generateReportsTitle}</span>
           </CardTitle>
         </CardHeader>
         <CardContent className="p-6 space-y-6">
           {/* اسم المكتب/الشركة */}
           <div className="space-y-2">
-            <Label className={labelClass}>اسم المكتب / الشركة</Label>
-            <p className={helperClass}>سيظهر في ترويسة التقرير المطبوع</p>
+            <Label className={labelClass}>{t.companyName}</Label>
+            <p className={helperClass}>{t.companyNameHint}</p>
             <Input
               value={companyName}
               onChange={(e) => setCompanyName(e.target.value)}
-              placeholder="مثال: مكتب هندسة الإنشائية — دمشق"
+              placeholder={t.companyPlaceholder}
               className="w-full"
               dir={isRTL ? 'rtl' : 'ltr'}
             />
@@ -259,12 +276,12 @@ export default function GenerateReports({ projectData }: GenerateReportsProps) {
 
           {/* ترويسة التقرير */}
           <div className="space-y-2">
-            <Label className={labelClass}>ترويسة التقرير النهائي</Label>
-            <p className={helperClass}>نص يظهر في أعلى كل صفحة من التقرير</p>
+            <Label className={labelClass}>{t.reportHeader}</Label>
+            <p className={helperClass}>{t.reportHeaderHint}</p>
             <Textarea
               value={reportHeader}
               onChange={(e) => setReportHeader(e.target.value)}
-              placeholder="أدخل نص الترويسة هنا...&#10;مثال: تقرير تقييم فني شامل للمنشأة المذكورة أدناه"
+              placeholder={t.headerPlaceholder}
               className="min-h-[100px] resize-y"
               dir={isRTL ? 'rtl' : 'ltr'}
             />
@@ -272,12 +289,12 @@ export default function GenerateReports({ projectData }: GenerateReportsProps) {
 
           {/* تذييل التقرير */}
           <div className="space-y-2">
-            <Label className={labelClass}>تذييل / نهاية التقرير</Label>
-            <p className={helperClass}>نص يظهر في نهاية التقرير</p>
+            <Label className={labelClass}>{t.reportFooter}</Label>
+            <p className={helperClass}>{t.reportFooterHint}</p>
             <Textarea
               value={reportFooter}
               onChange={(e) => setReportFooter(e.target.value)}
-              placeholder="أدخل نص التذييل هنا...&#10;مثال: تم إعداد هذا التقرير وفقاً للكود العربي السوري 2024"
+              placeholder={t.footerPlaceholder}
               className="min-h-[80px] resize-y"
               dir={isRTL ? 'rtl' : 'ltr'}
             />
@@ -292,14 +309,14 @@ export default function GenerateReports({ projectData }: GenerateReportsProps) {
             <div className="p-2 bg-white/20 rounded-lg backdrop-blur-sm">
               <ListChecks className="h-5 w-5" />
             </div>
-            <span>اختيار الواجهات</span>
+            <span>{t.sectionSelection}</span>
           </CardTitle>
         </CardHeader>
         <CardContent className="p-6">
           {/* Select All / Deselect All */}
           <div className="flex items-center justify-between mb-4">
             <p className="text-sm text-muted-foreground">
-              اختر الأقسام المراد تضمينها في التقرير
+              {t.sectionSelectionHint}
               <span className="ms-2 font-medium text-foreground">
                 ({selectedSections.length}/{SECTION_OPTIONS.length})
               </span>
@@ -311,7 +328,7 @@ export default function GenerateReports({ projectData }: GenerateReportsProps) {
                 className="text-xs text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50"
                 onClick={selectAll}
               >
-                تحديد الكل
+                {t.selectAll}
               </Button>
               <Separator orientation="vertical" className="h-4" />
               <Button
@@ -320,7 +337,7 @@ export default function GenerateReports({ projectData }: GenerateReportsProps) {
                 className="text-xs text-muted-foreground hover:text-foreground"
                 onClick={deselectAll}
               >
-                إلغاء الكل
+                {t.deselectAll}
               </Button>
             </div>
           </div>
@@ -359,12 +376,12 @@ export default function GenerateReports({ projectData }: GenerateReportsProps) {
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className={`text-sm font-medium ${isChecked ? 'text-foreground' : 'text-foreground/70'}`}>
-                        {section.label}
+                        {getSectionLabel(section.id)}
                       </p>
                     </div>
                     {!hasData && (
                       <span className="text-[10px] px-2 py-0.5 rounded-full bg-muted text-muted-foreground shrink-0">
-                        لا توجد بيانات
+                        {t.noData}
                       </span>
                     )}
                   </div>
@@ -382,7 +399,7 @@ export default function GenerateReports({ projectData }: GenerateReportsProps) {
             <div className="p-2 bg-white/20 rounded-lg backdrop-blur-sm">
               <FileOutput className="h-5 w-5" />
             </div>
-            <span>إجراءات</span>
+            <span>{t.procedures}</span>
           </CardTitle>
         </CardHeader>
         <CardContent className="p-6">
@@ -394,8 +411,8 @@ export default function GenerateReports({ projectData }: GenerateReportsProps) {
               className="h-auto py-4 flex flex-col items-center gap-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white shadow-md hover:shadow-lg transition-all duration-200 disabled:opacity-50 disabled:shadow-none"
             >
               <Eye className="h-6 w-6" />
-              <span className="text-sm font-medium">معاينة قبل الطباعة</span>
-              <span className="text-[10px] opacity-80">فتح نافذة معاينة الطباعة</span>
+              <span className="text-sm font-medium">{t.printPreview}</span>
+              <span className="text-[10px] opacity-80">{t.printPreviewHint}</span>
             </Button>
 
             {/* تحميل ملف PDF */}
@@ -408,15 +425,15 @@ export default function GenerateReports({ projectData }: GenerateReportsProps) {
               {isGenerating ? (
                 <>
                   <Loader2 className="h-6 w-6 animate-spin" />
-                  <span className="text-sm font-medium">جاري الإنشاء...</span>
+                  <span className="text-sm font-medium">{t.creating}</span>
                   <span className="text-[10px] text-muted-foreground">{generationProgress}</span>
                 </>
               ) : (
                 <>
                   <FileDown className="h-6 w-6" />
-                  <span className="text-sm font-medium">تحميل ملف PDF</span>
+                  <span className="text-sm font-medium">{t.downloadPdf}</span>
                   <span className="text-[10px] text-muted-foreground">
-                    {fontLoading ? 'جاري تحميل الخط...' : 'إنشاء وتحميل ملف PDF'}
+                    {fontLoading ? t.loadingFont : t.createAndDownload}
                   </span>
                 </>
               )}
@@ -438,7 +455,7 @@ export default function GenerateReports({ projectData }: GenerateReportsProps) {
 
           {selectedSections.length === 0 && !isGenerating && (
             <p className="text-center text-sm text-muted-foreground mt-3">
-              يرجى اختيار قسم واحد على الأقل من الأقسام أعلاه
+              {t.selectAtLeastOneHint}
             </p>
           )}
         </CardContent>

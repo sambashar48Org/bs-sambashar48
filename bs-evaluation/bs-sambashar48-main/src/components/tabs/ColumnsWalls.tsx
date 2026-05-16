@@ -39,6 +39,7 @@ import {
 import { checkColumnWallStress } from '@/lib/calculations';
 import type { ColumnWallResult } from '@/lib/calculations';
 import { useProjectStore } from '@/stores';
+import { useTranslation } from '@/lib/i18n';
 
 // ======== Types ========
 
@@ -117,6 +118,26 @@ function restoreEntry(raw: Record<string, unknown>): ColumnWallEntry {
 // ======== Main Component ========
 
 export default function ColumnsWalls({ data, onSave }: ColumnsWallsProps) {
+  const { t, isRTL } = useTranslation();
+
+  // ======== i18n Helper Functions ========
+  const getElementTypeLabel = (value: string): string => {
+    switch (value) {
+      case 'عمود': return t.columnElement;
+      case 'جدار': return t.wallElement;
+      default: return value;
+    }
+  };
+
+  const getColumnPositionLabel = (value: string): string => {
+    switch (value) {
+      case 'وسطي': return t.columnPositionCenter;
+      case 'طرفي': return t.columnPositionEdge;
+      case 'ركني': return t.columnPositionCorner;
+      default: return value;
+    }
+  };
+
   // Read f'c from structural report (hammer test)
   const structuralReport = useProjectStore((s) => s.projectData.structural_report);
   const fcFromReport = useMemo(() => {
@@ -263,18 +284,18 @@ export default function ColumnsWalls({ data, onSave }: ColumnsWallsProps) {
               <div className="p-2 bg-white/20 rounded-lg backdrop-blur-sm">
                 <Columns3 className="h-5 w-5" />
               </div>
-              <span>تقييم الأعمدة والجدران</span>
-              <span className="text-xs font-normal opacity-80">وفقاً للكود السوري 2024 — طريقة التشغيل</span>
+              <span>{t.columnsWallsTitle}</span>
+              <span className="text-xs font-normal opacity-80">{t.columnsWallsCodeRef}</span>
             </CardTitle>
             <div className="flex items-center gap-2">
               {safeCount > 0 && (
                 <span className="text-xs bg-emerald-400/30 px-2.5 py-1 rounded-full text-white font-medium">
-                  آمن: {safeCount}
+                  {t.safeCount} {safeCount}
                 </span>
               )}
               {unsafeCount > 0 && (
                 <span className="text-xs bg-red-400/30 px-2.5 py-1 rounded-full text-white font-medium">
-                  غير آمن: {unsafeCount}
+                  {t.unsafeCount} {unsafeCount}
                 </span>
               )}
             </div>
@@ -285,7 +306,7 @@ export default function ColumnsWalls({ data, onSave }: ColumnsWallsProps) {
           <div className="mb-5 p-4 rounded-xl border border-emerald-100 dark:border-emerald-900/50 bg-gradient-to-r from-emerald-50/80 to-teal-50/80 dark:from-emerald-950/20 dark:to-teal-950/20 space-y-3">
             <div className="flex items-center gap-2 mb-2">
               <ShieldCheck className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
-              <span className="text-sm font-semibold text-foreground/90">المقاومة الاسطوانية f&apos;c</span>
+              <span className="text-sm font-semibold text-foreground/90">{t.fcLabelShort}</span>
             </div>
 
             <div className="flex flex-wrap items-center gap-3">
@@ -298,7 +319,7 @@ export default function ColumnsWalls({ data, onSave }: ColumnsWallsProps) {
                   disabled={!isEditing}
                   className="accent-emerald-600"
                 />
-                <span className="text-sm text-foreground/80">من تقرير تجربة المطرقة</span>
+                <span className="text-sm text-foreground/80">{t.fcFromHammerTest}</span>
               </label>
               <label className="flex items-center gap-2 cursor-pointer">
                 <input
@@ -309,7 +330,7 @@ export default function ColumnsWalls({ data, onSave }: ColumnsWallsProps) {
                   disabled={!isEditing}
                   className="accent-emerald-600"
                 />
-                <span className="text-sm text-foreground/80">إدخال يدوي</span>
+                <span className="text-sm text-foreground/80">{t.manualEntry}</span>
               </label>
             </div>
 
@@ -317,15 +338,15 @@ export default function ColumnsWalls({ data, onSave }: ColumnsWallsProps) {
               <div className="flex items-center gap-2">
                 {fcFromReport > 0 ? (
                   <span className="text-sm text-foreground/90">
-                    القيمة من التقرير:{' '}
+                    {t.fcFromReportValue}{' '}
                     <span className="font-bold text-emerald-700 dark:text-emerald-400" dir="ltr">
-                      {fcFromReport} كغ/سم²
+                      {fcFromReport} {t.kgCm2}
                     </span>
                   </span>
                 ) : (
                   <div className="flex items-center gap-2 text-amber-600 dark:text-amber-400">
                     <AlertTriangle className="h-4 w-4" />
-                    <span className="text-sm">لم يتم العثور على قيمة f&apos;c في تقرير تجربة المطرقة. يرجى إدخال البيانات في التقرير الإنشائي أولاً أو اختيار الإدخال اليدوي.</span>
+                    <span className="text-sm">{t.fcNotFoundInReport}</span>
                   </div>
                 )}
               </div>
@@ -337,12 +358,12 @@ export default function ColumnsWalls({ data, onSave }: ColumnsWallsProps) {
                   type="number"
                   value={fcManual}
                   onChange={(e) => setFcManual(e.target.value)}
-                  placeholder="أدخل القيمة"
+                  placeholder={t.manualEntry}
                   className="h-9 text-sm"
                   dir="ltr"
                   disabled={!isEditing}
                 />
-                <span className="text-xs text-muted-foreground whitespace-nowrap">(كغ/سم²)</span>
+                <span className="text-xs text-muted-foreground whitespace-nowrap">({t.kgCm2})</span>
               </div>
             )}
           </div>
@@ -365,7 +386,7 @@ export default function ColumnsWalls({ data, onSave }: ColumnsWallsProps) {
                   {/* Entry Header */}
                   <div className="flex items-center justify-between mb-3">
                     <span className="text-xs font-semibold text-muted-foreground bg-muted px-2.5 py-1 rounded-md">
-                      {entry.elementType === 'عمود' ? 'عمود' : 'جدار'} #{index + 1}
+                      {getElementTypeLabel(entry.elementType)} #{index + 1}
                     </span>
                     <Button
                       variant="ghost"
@@ -382,7 +403,7 @@ export default function ColumnsWalls({ data, onSave }: ColumnsWallsProps) {
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                     {/* Element Type */}
                     <div className="space-y-1">
-                      <Label className="text-xs text-muted-foreground">نوع العنصر</Label>
+                      <Label className="text-xs text-muted-foreground">{t.elementType}</Label>
                       <Select
                         value={entry.elementType}
                         onValueChange={(val) => {
@@ -400,7 +421,7 @@ export default function ColumnsWalls({ data, onSave }: ColumnsWallsProps) {
                         <SelectContent>
                           {ELEMENT_TYPES.map((type) => (
                             <SelectItem key={type} value={type}>
-                              {type}
+                              {getElementTypeLabel(type)}
                             </SelectItem>
                           ))}
                         </SelectContent>
@@ -410,19 +431,19 @@ export default function ColumnsWalls({ data, onSave }: ColumnsWallsProps) {
                     {/* Column Type (only for عمود) */}
                     {entry.elementType === 'عمود' && (
                       <div className="space-y-1">
-                        <Label className="text-xs text-muted-foreground">موقع العمود</Label>
+                        <Label className="text-xs text-muted-foreground">{t.columnPositionLabel}</Label>
                         <Select
                           value={entry.columnType}
                           onValueChange={(val) => updateEntry(entry.id, 'columnType', val)}
                           disabled={!isEditing}
                         >
                           <SelectTrigger className="h-9 text-sm">
-                            <SelectValue placeholder="اختر موقع العمود" />
+                            <SelectValue placeholder={t.chooseColumnPosition} />
                           </SelectTrigger>
                           <SelectContent>
                             {COLUMN_TYPE_OPTIONS.map((type) => (
                               <SelectItem key={type} value={type}>
-                                {type}
+                                {getColumnPositionLabel(type)}
                               </SelectItem>
                             ))}
                           </SelectContent>
@@ -432,7 +453,7 @@ export default function ColumnsWalls({ data, onSave }: ColumnsWallsProps) {
 
                     {/* Floor */}
                     <div className="space-y-1">
-                      <Label className="text-xs text-muted-foreground">الطابق</Label>
+                      <Label className="text-xs text-muted-foreground">{t.floorLabel}</Label>
                       <Input
                         value={entry.floor}
                         onChange={(e) => updateEntry(entry.id, 'floor', e.target.value)}
@@ -445,7 +466,7 @@ export default function ColumnsWalls({ data, onSave }: ColumnsWallsProps) {
                     {/* Name */}
                     <div className="space-y-1">
                       <Label className="text-xs text-muted-foreground">
-                        اسم {entry.elementType === 'عمود' ? 'العمود' : 'الجدار'}
+                        {entry.elementType === 'عمود' ? t.columnElement : t.wallElement}
                       </Label>
                       <Input
                         value={entry.name}
@@ -458,7 +479,7 @@ export default function ColumnsWalls({ data, onSave }: ColumnsWallsProps) {
 
                     {/* Section Width */}
                     <div className="space-y-1">
-                      <Label className="text-xs text-muted-foreground">عرض المقطع b (سم)</Label>
+                      <Label className="text-xs text-muted-foreground">{t.sectionWidthB}</Label>
                       <Input
                         type="number"
                         value={entry.sectionWidth}
@@ -472,7 +493,7 @@ export default function ColumnsWalls({ data, onSave }: ColumnsWallsProps) {
 
                     {/* Section Depth */}
                     <div className="space-y-1">
-                      <Label className="text-xs text-muted-foreground">طول المقطع h (سم)</Label>
+                      <Label className="text-xs text-muted-foreground">{t.sectionLengthH}</Label>
                       <Input
                         type="number"
                         value={entry.sectionDepth}
@@ -486,7 +507,7 @@ export default function ColumnsWalls({ data, onSave }: ColumnsWallsProps) {
 
                     {/* Total Load */}
                     <div className="space-y-1">
-                      <Label className="text-xs text-muted-foreground">الحمولة الاستثمارية (طن)</Label>
+                      <Label className="text-xs text-muted-foreground">{t.investmentLoad}</Label>
                       <Input
                         type="number"
                         value={entry.totalLoad}
@@ -500,7 +521,7 @@ export default function ColumnsWalls({ data, onSave }: ColumnsWallsProps) {
 
                     {/* H_clear — الارتفاع الصافي */}
                     <div className="space-y-1">
-                      <Label className="text-xs text-muted-foreground">الارتفاع الصافي H (سم)</Label>
+                      <Label className="text-xs text-muted-foreground">{t.clearHeight}</Label>
                       <Input
                         type="number"
                         value={entry.H_clear}
@@ -514,7 +535,7 @@ export default function ColumnsWalls({ data, onSave }: ColumnsWallsProps) {
 
                     {/* n — نسبة النمطية */}
                     <div className="space-y-1">
-                      <Label className="text-xs text-muted-foreground">نسبة النمطية n (لا وحدة)</Label>
+                      <Label className="text-xs text-muted-foreground">{t.slendernessRatio}</Label>
                       <Input
                         type="number"
                         value={entry.n}
@@ -529,13 +550,13 @@ export default function ColumnsWalls({ data, onSave }: ColumnsWallsProps) {
                     {/* As — مساحة حديد التسليح */}
                     <div className="space-y-1">
                       <Label className="text-xs text-muted-foreground">
-                        مساحة حديد التسليح A<sub>s</sub> (سم²)
+                        {t.rebarAreaAs}
                       </Label>
                       <Input
                         type="number"
                         value={entry.As}
                         onChange={(e) => updateEntry(entry.id, 'As', e.target.value)}
-                        placeholder="تلقائي (1%)"
+                        placeholder={t.autoReinforcement}
                         className="h-9 text-sm"
                         dir="ltr"
                         disabled={!isEditing}
@@ -545,11 +566,11 @@ export default function ColumnsWalls({ data, onSave }: ColumnsWallsProps) {
 
                   {/* Notes */}
                   <div className="mt-3 space-y-1">
-                    <Label className="text-xs text-muted-foreground">ملاحظات</Label>
+                    <Label className="text-xs text-muted-foreground">{t.notesLabel}</Label>
                     <Textarea
                       value={entry.notes}
                       onChange={(e) => updateEntry(entry.id, 'notes', e.target.value)}
-                      placeholder="ملاحظات إضافية..."
+                      placeholder={t.notesPlaceholder}
                       className="min-h-[50px] text-sm resize-y"
                       rows={1}
                       disabled={!isEditing}
@@ -568,7 +589,7 @@ export default function ColumnsWalls({ data, onSave }: ColumnsWallsProps) {
               onClick={addEntry}
             >
               <Plus className="h-4 w-4 me-2" />
-              إضافة عنصر جديد
+              {t.addElement}
             </Button>
           )}
         </CardContent>
@@ -582,7 +603,7 @@ export default function ColumnsWalls({ data, onSave }: ColumnsWallsProps) {
               <div className="p-2 bg-white/20 rounded-lg backdrop-blur-sm">
                 <ShieldCheck className="h-5 w-5" />
               </div>
-              <span>نتائج فحص إجهاد الضغط</span>
+              <span>{t.compressionStressResults}</span>
             </CardTitle>
           </CardHeader>
           <CardContent className="p-6">
@@ -591,13 +612,13 @@ export default function ColumnsWalls({ data, onSave }: ColumnsWallsProps) {
               {safeCount > 0 && (
                 <div className="flex items-center gap-1.5 text-sm font-medium text-emerald-700 dark:text-emerald-400 bg-emerald-100 dark:bg-emerald-900/30 px-3 py-1.5 rounded-lg">
                   <CheckCircle className="h-4 w-4" />
-                  <span>{safeCount} آمن</span>
+                  <span>{safeCount} {t.safeLabel}</span>
                 </div>
               )}
               {unsafeCount > 0 && (
                 <div className="flex items-center gap-1.5 text-sm font-medium text-red-700 dark:text-red-400 bg-red-100 dark:bg-red-900/30 px-3 py-1.5 rounded-lg">
                   <XCircle className="h-4 w-4" />
-                  <span>{unsafeCount} غير آمن</span>
+                  <span>{unsafeCount} {t.unsafeLabel}</span>
                 </div>
               )}
             </div>
@@ -609,10 +630,10 @@ export default function ColumnsWalls({ data, onSave }: ColumnsWallsProps) {
                 if (!computed?.hasResult || !computed.result) return null;
                 const result = computed.result;
 
-                const entryName = entry.name || `${entry.elementType} #${index + 1}`;
+                const entryName = entry.name || `${getElementTypeLabel(entry.elementType)} #${index + 1}`;
                 const subtitleParts = [
-                  entry.elementType === 'عمود' && entry.columnType ? entry.columnType : '',
-                  entry.floor ? `الطابق: ${entry.floor}` : '',
+                  entry.elementType === 'عمود' && entry.columnType ? getColumnPositionLabel(entry.columnType) : '',
+                  entry.floor ? `${t.floorLabel}: ${entry.floor}` : '',
                 ].filter(Boolean);
                 const subtitle = subtitleParts.join(' — ');
 
@@ -663,10 +684,10 @@ export default function ColumnsWalls({ data, onSave }: ColumnsWallsProps) {
                         <div className="flex items-center justify-between p-3 rounded-lg bg-background border">
                           <div className="flex items-center gap-2">
                             <Ruler className="h-4 w-4 text-muted-foreground" />
-                            <span className="text-sm text-muted-foreground">المساحة المكافئة A<sub>eq</sub></span>
+                            <span className="text-sm text-muted-foreground">{t.equivalentArea} A<sub>eq</sub></span>
                           </div>
                           <span className="text-sm font-bold px-3 py-1 rounded-md bg-muted" dir="ltr">
-                            {result.Aeq.toFixed(2)} سم²
+                            {result.Aeq.toFixed(2)} {t.cm}²
                           </span>
                         </div>
 
@@ -674,16 +695,16 @@ export default function ColumnsWalls({ data, onSave }: ColumnsWallsProps) {
                         <div className="flex items-center justify-between p-3 rounded-lg bg-background border">
                           <div className="flex items-center gap-2">
                             <Wrench className="h-4 w-4 text-muted-foreground" />
-                            <span className="text-sm text-muted-foreground">مساحة التسليح المستخدمة A<sub>s</sub></span>
+                            <span className="text-sm text-muted-foreground">{t.usedReinforcementArea} A<sub>s</sub></span>
                           </div>
                           <div className="flex items-center gap-2">
                             {computed.asAutoCalculated && (
                               <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 font-medium">
-                                تلقائي
+                                {t.automatic}
                               </span>
                             )}
                             <span className="text-sm font-bold px-3 py-1 rounded-md bg-muted" dir="ltr">
-                              {result.AsProvided.toFixed(2)} سم²
+                              {result.AsProvided.toFixed(2)} {t.cm}²
                             </span>
                           </div>
                         </div>
@@ -692,7 +713,7 @@ export default function ColumnsWalls({ data, onSave }: ColumnsWallsProps) {
                         <div className="flex items-center justify-between p-3 rounded-lg bg-background border">
                           <div className="flex items-center gap-2">
                             <Gauge className="h-4 w-4 text-muted-foreground" />
-                            <span className="text-sm text-muted-foreground">الإجهاد الفعلي &sigma;<sub>فعلي</sub></span>
+                            <span className="text-sm text-muted-foreground">{t.actualStressLabel} &sigma;<sub>{t.actualStress}</sub></span>
                           </div>
                           <span
                             className={`text-sm font-bold px-3 py-1 rounded-md ${
@@ -702,7 +723,7 @@ export default function ColumnsWalls({ data, onSave }: ColumnsWallsProps) {
                             }`}
                             dir="ltr"
                           >
-                            {result.actualStress.toFixed(2)} كغ/سم²
+                            {result.actualStress.toFixed(2)} {t.kgCm2}
                           </span>
                         </div>
 
@@ -710,10 +731,10 @@ export default function ColumnsWalls({ data, onSave }: ColumnsWallsProps) {
                         <div className="flex items-center justify-between p-3 rounded-lg bg-background border">
                           <div className="flex items-center gap-2">
                             <ShieldCheck className="h-4 w-4 text-muted-foreground" />
-                            <span className="text-sm text-muted-foreground">الإجهاد المسموح &sigma;<sub>مسموح</sub> (0.3 &times; f&apos;c)</span>
+                            <span className="text-sm text-muted-foreground">{t.allowableStressLabel} &sigma;<sub>{t.allowableStress}</sub> (0.3 &times; f&apos;c)</span>
                           </div>
                           <span className="text-sm font-bold px-3 py-1 rounded-md bg-muted" dir="ltr">
-                            {result.allowableStress.toFixed(2)} كغ/سم²
+                            {result.allowableStress.toFixed(2)} {t.kgCm2}
                           </span>
                         </div>
 
@@ -721,12 +742,12 @@ export default function ColumnsWalls({ data, onSave }: ColumnsWallsProps) {
                         <div className="flex items-center justify-between p-3 rounded-lg bg-background border">
                           <div className="flex items-center gap-2">
                             <ArrowUpDown className="h-4 w-4 text-muted-foreground" />
-                            <span className="text-sm text-muted-foreground">معامل النحافة &lambda;</span>
+                            <span className="text-sm text-muted-foreground">{t.slendernessCoeff} &lambda;</span>
                           </div>
                           <div className="flex items-center gap-2">
                             {result.slendernessRatio > 12 && (
                               <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 font-medium">
-                                يحتاج تخفيض
+                                {t.needsReduction}
                               </span>
                             )}
                             <span
@@ -747,11 +768,11 @@ export default function ColumnsWalls({ data, onSave }: ColumnsWallsProps) {
                           <div className="flex items-center justify-between p-3 rounded-lg bg-background border border-amber-200 dark:border-amber-800">
                             <div className="flex items-center gap-2">
                               <Minimize2 className="h-4 w-4 text-amber-600 dark:text-amber-400" />
-                              <span className="text-sm text-muted-foreground">معامل التخفيض &phi;</span>
+                              <span className="text-sm text-muted-foreground">{t.reductionFactor} &phi;</span>
                             </div>
                             <div className="flex items-center gap-2">
                               <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 font-medium" dir="ltr">
-                                {entry.columnType === 'وسطي' ? 'وسطي = 0.8' : entry.columnType === 'طرفي' ? 'طرفي = 0.7' : entry.columnType === 'ركني' ? 'ركني = 0.6' : ''}
+                                {entry.columnType === 'وسطي' ? `${t.columnPositionCenter} = 0.8` : entry.columnType === 'طرفي' ? `${t.columnPositionEdge} = 0.7` : entry.columnType === 'ركني' ? `${t.columnPositionCorner} = 0.6` : ''}
                               </span>
                               <span className="text-sm font-bold px-3 py-1 rounded-md bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-400" dir="ltr">
                                 {result.reductionFactor.toFixed(2)}
@@ -765,13 +786,13 @@ export default function ColumnsWalls({ data, onSave }: ColumnsWallsProps) {
                           <div className="flex items-center justify-between p-3 rounded-lg bg-background border border-amber-200 dark:border-amber-800">
                             <div className="flex items-center gap-2">
                               <Info className="h-4 w-4 text-amber-600 dark:text-amber-400" />
-                              <span className="text-sm text-muted-foreground">الإجهاد المسموح الفعلي &sigma;<sub>مسموح</sub> &times; &phi;</span>
+                              <span className="text-sm text-muted-foreground">{t.actualAllowableStress} &sigma;<sub>{t.allowableStress}</sub> &times; &phi;</span>
                             </div>
                             <span
                               className="text-sm font-bold px-3 py-1 rounded-md bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-400"
                               dir="ltr"
                             >
-                              {result.effectiveAllowable.toFixed(2)} كغ/سم²
+                              {result.effectiveAllowable.toFixed(2)} {t.kgCm2}
                             </span>
                           </div>
                         )}
@@ -791,7 +812,7 @@ export default function ColumnsWalls({ data, onSave }: ColumnsWallsProps) {
                               <AlertTriangle className="h-5 w-5 text-red-600 dark:text-red-400" />
                             )}
                             <span className="text-sm font-bold">
-                              {result.safe ? 'آمن (محقق)' : 'غير آمن (غير محقق)'}
+                              {result.safe ? t.safeVerified : t.unsafeNotVerified}
                             </span>
                           </div>
                           <span className="text-lg">{result.safe ? '✅' : '❌'}</span>
@@ -800,7 +821,7 @@ export default function ColumnsWalls({ data, onSave }: ColumnsWallsProps) {
                         {/* 9. Ratio Bar */}
                         <div className="p-3 rounded-lg bg-muted/50">
                           <div className="flex items-center justify-between mb-2">
-                            <span className="text-xs text-muted-foreground">نسبة الإجهاد المستخدم</span>
+                            <span className="text-xs text-muted-foreground">{t.stressUtilRatio}</span>
                             <span
                               className={`text-xs font-bold ${
                                 result.safe ? 'text-emerald-600' : 'text-red-600'
@@ -840,7 +861,7 @@ export default function ColumnsWalls({ data, onSave }: ColumnsWallsProps) {
             className="border-emerald-300 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 px-8"
           >
             <Edit3 className="h-4 w-4 me-2" />
-            تعديل
+            {t.editData}
           </Button>
         ) : (
           <Button
@@ -848,7 +869,7 @@ export default function ColumnsWalls({ data, onSave }: ColumnsWallsProps) {
             className="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white shadow-md hover:shadow-lg transition-all duration-200 px-8"
           >
             <Save className="h-4 w-4 me-2" />
-            حفظ
+            {t.saveData}
           </Button>
         )}
       </div>

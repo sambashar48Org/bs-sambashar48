@@ -44,6 +44,7 @@ import {
   calculateSlabMomentShear,
 } from '@/lib/calculations';
 import { useProjectStore } from '@/stores';
+import { useTranslation } from '@/lib/i18n';
 
 // =====================================================================
 // Types
@@ -112,18 +113,11 @@ interface BeamSlabProps {
 // Constants
 // =====================================================================
 
-const SLAB_SUB_TYPE_OPTIONS: { value: SlabSubType; label: string }[] = [
-  { value: 'oneWaySolid', label: 'بلاطة مصمتة باتجاه واحد' },
-  { value: 'twoWaySolid', label: 'بلاطة مصمتة باتجاهين' },
-  { value: 'oneWayRibbed', label: 'بلاطة هوردي باتجاه واحد' },
-  { value: 'twoWayRibbed', label: 'بلاطة هوردي باتجاهين' },
-  { value: 'flatSlab', label: 'بلاطة فطرية' },
+const SLAB_SUB_TYPE_VALUES: SlabSubType[] = [
+  'oneWaySolid', 'twoWaySolid', 'oneWayRibbed', 'twoWayRibbed', 'flatSlab',
 ];
 
-const BEAM_SUB_TYPE_OPTIONS: { value: BeamSubType; label: string }[] = [
-  { value: 'dropped', label: 'جائز ساقط' },
-  { value: 'hidden', label: 'جائز مخفي' },
-];
+const BEAM_SUB_TYPE_VALUES: BeamSubType[] = ['dropped', 'hidden'];
 
 const STANDARD_SUPPORT_CONDITIONS = [
   'بسيط',
@@ -134,11 +128,7 @@ const STANDARD_SUPPORT_CONDITIONS = [
 
 const FLAT_SLAB_CONDITIONS = ['مع تيجان', 'بدون تيجان'];
 
-const PUNCHING_COLUMN_TYPES = [
-  { value: 'center', label: 'وسطي' },
-  { value: 'edge', label: 'طرفي' },
-  { value: 'corner', label: 'ركني' },
-];
+const PUNCHING_COLUMN_TYPE_VALUES = ['center', 'edge', 'corner'] as const;
 
 const STIRRUP_DIAMETER_OPTIONS = ['6', '8', '10', '12', '14'];
 const REBAR_DIAMETER_OPTIONS = ['10', '12', '14', '16', '18', '20', '22', '25', '28', '32'];
@@ -343,6 +333,49 @@ function StatusBanner({ safe, label }: { safe: boolean; label: string }) {
 // =====================================================================
 
 export default function BeamSlab({ data, onSave }: BeamSlabProps) {
+  const { t, isRTL } = useTranslation();
+
+  // ======== i18n Helper Functions ========
+  const getSlabSubTypeLabel = (value: SlabSubType): string => {
+    switch (value) {
+      case 'oneWaySolid': return t.slabOneWaySolid;
+      case 'twoWaySolid': return t.slabTwoWaySolid;
+      case 'oneWayRibbed': return t.slabOneWayRibbed;
+      case 'twoWayRibbed': return t.slabTwoWayRibbed;
+      case 'flatSlab': return t.slabFlatSlab;
+      default: return value;
+    }
+  };
+
+  const getBeamSubTypeLabel = (value: BeamSubType): string => {
+    switch (value) {
+      case 'dropped': return t.beamDropped;
+      case 'hidden': return t.beamHidden;
+      default: return value;
+    }
+  };
+
+  const getSupportConditionLabel = (value: string): string => {
+    switch (value) {
+      case 'بسيط': return t.supportSimple;
+      case 'مستمر من طرف واحد': return t.supportOneEnd;
+      case 'مستمر من طرفين': return t.supportBothEnds;
+      case 'كابولي حر': return t.supportCantilever;
+      case 'مع تيجان': return t.withDropPanels;
+      case 'بدون تيجان': return t.withoutDropPanels;
+      default: return value;
+    }
+  };
+
+  const getColumnPositionLabel = (value: string): string => {
+    switch (value) {
+      case 'center': return t.columnPositionCenter;
+      case 'edge': return t.columnPositionEdge;
+      case 'corner': return t.columnPositionCorner;
+      default: return value;
+    }
+  };
+
   // Read f'c from structural report (hammer test)
   const structuralReport = useProjectStore((s) => s.projectData.structural_report);
   const fcFromReport = useMemo(() => {
@@ -867,7 +900,7 @@ export default function BeamSlab({ data, onSave }: BeamSlabProps) {
             <div className="p-2 bg-white/20 rounded-lg backdrop-blur-sm">
               <Layers className="h-5 w-5" />
             </div>
-            <span>معاملات عامة — الجوائز والبلاطات</span>
+            <span>${t.beamSlabGeneralParams}</span>
           </CardTitle>
         </CardHeader>
         <CardContent className="p-6">
@@ -875,8 +908,8 @@ export default function BeamSlab({ data, onSave }: BeamSlabProps) {
             {/* f'c */}
             <div className="space-y-2">
               <Label className="text-sm font-medium text-foreground/80">
-                المقاومة الاسطوانية f&apos;c{' '}
-                <span className="text-muted-foreground">(كغ/سم²)</span>
+                ${t.fcLabelShort}{' '}
+                <span className="text-muted-foreground">(${t.kgCm2})</span>
               </Label>
               <Input
                 type="number"
@@ -888,7 +921,7 @@ export default function BeamSlab({ data, onSave }: BeamSlabProps) {
               />
               {fcFromReport > 0 && (
                 <p className="text-[10px] text-emerald-600 dark:text-emerald-400">
-                  تم التعبئة التلقائية من تقرير تجربة المطرقة ({fcFromReport})
+                  ${t.autoFilledFromHammer} ({fcFromReport})
                 </p>
               )}
             </div>
@@ -896,8 +929,8 @@ export default function BeamSlab({ data, onSave }: BeamSlabProps) {
             {/* fy */}
             <div className="space-y-2">
               <Label className="text-sm font-medium text-foreground/80">
-                إجهاد خضوع الحديد fy{' '}
-                <span className="text-muted-foreground">(كغ/سم²)</span>
+                ${t.fyLabel}{' '}
+                <span className="text-muted-foreground">(${t.kgCm2})</span>
               </Label>
               <Input
                 type="number"
@@ -920,19 +953,19 @@ export default function BeamSlab({ data, onSave }: BeamSlabProps) {
               <div className="p-2 bg-white/20 rounded-lg backdrop-blur-sm">
                 <Layers className="h-5 w-5" />
               </div>
-              <span>اختيار نوع العنصر</span>
+              <span>${t.selectElementType}</span>
             </CardTitle>
             <div className="flex items-center gap-2">
               {activeElementType === 'slabs' && (
                 <>
                   {slabSafeCount > 0 && (
                     <span className="text-xs bg-emerald-400/30 px-2.5 py-1 rounded-full text-white font-medium">
-                      آمن: {slabSafeCount}
+                      ${t.safeCount} {slabSafeCount}
                     </span>
                   )}
                   {slabUnsafeCount > 0 && (
                     <span className="text-xs bg-red-400/30 px-2.5 py-1 rounded-full text-white font-medium">
-                      غير آمن: {slabUnsafeCount}
+                      ${t.unsafeCount} {slabUnsafeCount}
                     </span>
                   )}
                 </>
@@ -941,12 +974,12 @@ export default function BeamSlab({ data, onSave }: BeamSlabProps) {
                 <>
                   {beamSafeCount > 0 && (
                     <span className="text-xs bg-emerald-400/30 px-2.5 py-1 rounded-full text-white font-medium">
-                      آمن: {beamSafeCount}
+                      ${t.safeCount} {beamSafeCount}
                     </span>
                   )}
                   {beamUnsafeCount > 0 && (
                     <span className="text-xs bg-red-400/30 px-2.5 py-1 rounded-full text-white font-medium">
-                      غير آمن: {beamUnsafeCount}
+                      ${t.unsafeCount} {beamUnsafeCount}
                     </span>
                   )}
                 </>
@@ -967,7 +1000,7 @@ export default function BeamSlab({ data, onSave }: BeamSlabProps) {
               onClick={() => setActiveElementType('slabs')}
             >
               <Layers className="h-4 w-4 me-2" />
-              بلاطات
+              ${t.slabsLabel}
             </Button>
             <Button
               variant={activeElementType === 'beams' ? 'default' : 'outline'}
@@ -979,7 +1012,7 @@ export default function BeamSlab({ data, onSave }: BeamSlabProps) {
               onClick={() => setActiveElementType('beams')}
             >
               <Ruler className="h-4 w-4 me-2" />
-              جوائز
+              ${t.beamsLabel}
             </Button>
           </div>
 
@@ -988,7 +1021,7 @@ export default function BeamSlab({ data, onSave }: BeamSlabProps) {
             <div className="space-y-4">
               {/* Slab Sub-type Selector */}
               <div className="space-y-2">
-                <Label className="text-sm font-medium text-foreground/80">نوع البلاطة</Label>
+                <Label className="text-sm font-medium text-foreground/80">${t.slabTypeLabel}</Label>
                 <Select
                   value={currentSlabType}
                   onValueChange={(val) => {
@@ -1010,9 +1043,9 @@ export default function BeamSlab({ data, onSave }: BeamSlabProps) {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {SLAB_SUB_TYPE_OPTIONS.map((opt) => (
-                      <SelectItem key={opt.value} value={opt.value}>
-                        {opt.label}
+                    {SLAB_SUB_TYPE_VALUES.map((val) => (
+                      <SelectItem key={val} value={val}>
+                        {getSlabSubTypeLabel(val)}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -1043,7 +1076,7 @@ export default function BeamSlab({ data, onSave }: BeamSlabProps) {
                     {/* Entry Header */}
                     <div className="flex items-center justify-between mb-3">
                       <span className="text-xs font-semibold text-muted-foreground bg-muted px-2.5 py-1 rounded-md">
-                        بلاطة #{index + 1}
+                        ${t.slabNumber} #{index + 1}
                       </span>
                       <Button
                         variant="ghost"
@@ -1060,7 +1093,7 @@ export default function BeamSlab({ data, onSave }: BeamSlabProps) {
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                       {/* Floor */}
                       <div className="space-y-1">
-                        <Label className="text-xs text-muted-foreground">الطابق</Label>
+                        <Label className="text-xs text-muted-foreground">${t.floorLabelShort}</Label>
                         <Input
                           value={slab.floor}
                           onChange={(e) => updateSlab(slab.id, 'floor', e.target.value)}
@@ -1073,7 +1106,7 @@ export default function BeamSlab({ data, onSave }: BeamSlabProps) {
                       {/* Support Condition */}
                       <div className="space-y-1">
                         <Label className="text-xs text-muted-foreground">
-                          {isFlat ? 'تيجان' : 'طبيعة الاستناد'}
+                          {isFlat ? t.dropPanels : t.supportNature}
                         </Label>
                         <Select
                           value={isFlat ? slab.hasDropPanels : slab.supportCondition}
@@ -1087,12 +1120,12 @@ export default function BeamSlab({ data, onSave }: BeamSlabProps) {
                           disabled={!isEditing}
                         >
                           <SelectTrigger className="h-9 text-sm">
-                            <SelectValue placeholder="اختر..." />
+                            <SelectValue placeholder="..." />
                           </SelectTrigger>
                           <SelectContent>
                             {supportConditions.map((c) => (
                               <SelectItem key={c} value={c}>
-                                {c}
+                                {getSupportConditionLabel(c)}
                               </SelectItem>
                             ))}
                           </SelectContent>
@@ -1103,7 +1136,7 @@ export default function BeamSlab({ data, onSave }: BeamSlabProps) {
                       {isTwoWay ? (
                         <>
                           <div className="space-y-1">
-                            <Label className="text-xs text-muted-foreground">المجاز الطويل (سم)</Label>
+                            <Label className="text-xs text-muted-foreground">${t.longSpan}</Label>
                             <Input
                               type="number"
                               value={slab.spanLong}
@@ -1115,7 +1148,7 @@ export default function BeamSlab({ data, onSave }: BeamSlabProps) {
                             />
                           </div>
                           <div className="space-y-1">
-                            <Label className="text-xs text-muted-foreground">المجاز القصير (سم)</Label>
+                            <Label className="text-xs text-muted-foreground">${t.shortSpan}</Label>
                             <Input
                               type="number"
                               value={slab.spanShort}
@@ -1129,7 +1162,7 @@ export default function BeamSlab({ data, onSave }: BeamSlabProps) {
                         </>
                       ) : (
                         <div className="space-y-1">
-                          <Label className="text-xs text-muted-foreground">المجاز (سم)</Label>
+                          <Label className="text-xs text-muted-foreground">${t.span}</Label>
                           <Input
                             type="number"
                             value={slab.span}
@@ -1146,7 +1179,7 @@ export default function BeamSlab({ data, onSave }: BeamSlabProps) {
                       {isRibbed ? (
                         <>
                           <div className="space-y-1">
-                            <Label className="text-xs text-muted-foreground">سمك الغطاء (سم)</Label>
+                            <Label className="text-xs text-muted-foreground">${t.beamCover}</Label>
                             <Input
                               type="number"
                               value={slab.coverThickness}
@@ -1158,7 +1191,7 @@ export default function BeamSlab({ data, onSave }: BeamSlabProps) {
                             />
                           </div>
                           <div className="space-y-1">
-                            <Label className="text-xs text-muted-foreground">ارتفاع العصب (سم)</Label>
+                            <Label className="text-xs text-muted-foreground">${t.ribWidth}</Label>
                             <Input
                               type="number"
                               value={slab.ribHeight}
@@ -1172,7 +1205,7 @@ export default function BeamSlab({ data, onSave }: BeamSlabProps) {
                         </>
                       ) : !isTwoWay ? (
                         <div className="space-y-1">
-                          <Label className="text-xs text-muted-foreground">السماكة المنفذة h (سم)</Label>
+                          <Label className="text-xs text-muted-foreground">${t.thicknessCheck}</Label>
                           <Input
                             type="number"
                             value={slab.hActual}
@@ -1188,7 +1221,7 @@ export default function BeamSlab({ data, onSave }: BeamSlabProps) {
                       {/* Two-way solid also needs hActual */}
                       {isTwoWay && !isRibbed && (
                         <div className="space-y-1">
-                          <Label className="text-xs text-muted-foreground">السماكة المنفذة h (سم)</Label>
+                          <Label className="text-xs text-muted-foreground">${t.thicknessCheck}</Label>
                           <Input
                             type="number"
                             value={slab.hActual}
@@ -1203,7 +1236,7 @@ export default function BeamSlab({ data, onSave }: BeamSlabProps) {
 
                       {/* Load */}
                       <div className="space-y-1">
-                        <Label className="text-xs text-muted-foreground">الحمولة (طن/م²)</Label>
+                        <Label className="text-xs text-muted-foreground">${t.load}</Label>
                         <Input
                           type="number"
                           value={slab.load}
@@ -1219,13 +1252,13 @@ export default function BeamSlab({ data, onSave }: BeamSlabProps) {
                       <div className="col-span-full mt-1 mb-1">
                         <div className="flex items-center gap-2 text-xs font-semibold text-emerald-600 dark:text-emerald-400">
                           <ShieldCheck className="h-3.5 w-3.5" />
-                          بيانات التسليح (للحسبة الإنشائية)
+                          ${t.reinforcementCheck}
                         </div>
                       </div>
 
                       {/* Rebar Count */}
                       <div className="space-y-1">
-                        <Label className="text-xs text-muted-foreground">عدد حديد التسليح / م</Label>
+                        <Label className="text-xs text-muted-foreground">${t.rebarCount}</Label>
                         <Input
                           type="number"
                           value={slab.rebarCount}
@@ -1239,19 +1272,19 @@ export default function BeamSlab({ data, onSave }: BeamSlabProps) {
 
                       {/* Rebar Diameter */}
                       <div className="space-y-1">
-                        <Label className="text-xs text-muted-foreground">قطر الحديد (مم)</Label>
+                        <Label className="text-xs text-muted-foreground">${t.rebarDiameter}</Label>
                         <Select
                           value={slab.rebarDiameter}
                           onValueChange={(v) => updateSlab(slab.id, 'rebarDiameter', v)}
                           disabled={!isEditing}
                         >
                           <SelectTrigger className="h-9 text-sm">
-                            <SelectValue placeholder="اختر..." />
+                            <SelectValue placeholder="..." />
                           </SelectTrigger>
                           <SelectContent>
                             {REBAR_DIAMETER_OPTIONS.map((d) => (
                               <SelectItem key={d} value={d}>
-                                {d} مم
+                                {d} mm
                               </SelectItem>
                             ))}
                           </SelectContent>
@@ -1260,7 +1293,7 @@ export default function BeamSlab({ data, onSave }: BeamSlabProps) {
 
                       {/* Cover */}
                       <div className="space-y-1">
-                        <Label className="text-xs text-muted-foreground">الغطاء (سم)</Label>
+                        <Label className="text-xs text-muted-foreground">${t.beamCover}</Label>
                         <Input
                           type="number"
                           value={slab.cover}
@@ -1278,11 +1311,11 @@ export default function BeamSlab({ data, onSave }: BeamSlabProps) {
                       <div className="mt-3 p-3 rounded-lg border border-amber-200 dark:border-amber-800 bg-amber-50/50 dark:bg-amber-950/10 space-y-3">
                         <div className="flex items-center gap-2 text-sm font-medium text-amber-700 dark:text-amber-400">
                           <ShieldCheck className="h-4 w-4" />
-                          بيانات فحص قص الثقب
+                          ${t.punchingCheck}
                         </div>
                         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                           <div className="space-y-1">
-                            <Label className="text-xs text-muted-foreground">عرض العمود (سم)</Label>
+                            <Label className="text-xs text-muted-foreground">${t.columnWidthLabel}</Label>
                             <Input
                               type="number"
                               value={slab.punchingColumnWidth}
@@ -1294,7 +1327,7 @@ export default function BeamSlab({ data, onSave }: BeamSlabProps) {
                             />
                           </div>
                           <div className="space-y-1">
-                            <Label className="text-xs text-muted-foreground">عمق العمود (سم)</Label>
+                            <Label className="text-xs text-muted-foreground">${t.columnDepthLabel}</Label>
                             <Input
                               type="number"
                               value={slab.punchingColumnDepth}
@@ -1306,7 +1339,7 @@ export default function BeamSlab({ data, onSave }: BeamSlabProps) {
                             />
                           </div>
                           <div className="space-y-1">
-                            <Label className="text-xs text-muted-foreground">رد فعل العمود (طن)</Label>
+                            <Label className="text-xs text-muted-foreground">${t.maxColumnLoad}</Label>
                             <Input
                               type="number"
                               value={slab.punchingReaction}
@@ -1318,7 +1351,7 @@ export default function BeamSlab({ data, onSave }: BeamSlabProps) {
                             />
                           </div>
                           <div className="space-y-1">
-                            <Label className="text-xs text-muted-foreground">نوع العمود</Label>
+                            <Label className="text-xs text-muted-foreground">${t.columnPosition}</Label>
                             <Select
                               value={slab.punchingColumnType}
                               onValueChange={(v) => updateSlab(slab.id, 'punchingColumnType', v)}
@@ -1328,9 +1361,9 @@ export default function BeamSlab({ data, onSave }: BeamSlabProps) {
                                 <SelectValue />
                               </SelectTrigger>
                               <SelectContent>
-                                {PUNCHING_COLUMN_TYPES.map((ct) => (
-                                  <SelectItem key={ct.value} value={ct.value}>
-                                    {ct.label}
+                                {PUNCHING_COLUMN_TYPE_VALUES.map((ct) => (
+                                  <SelectItem key={ct} value={ct}>
+                                    {getColumnPositionLabel(ct)}
                                   </SelectItem>
                                 ))}
                               </SelectContent>
@@ -1342,11 +1375,11 @@ export default function BeamSlab({ data, onSave }: BeamSlabProps) {
 
                     {/* Notes */}
                     <div className="mt-3 space-y-1">
-                      <Label className="text-xs text-muted-foreground">ملاحظات</Label>
+                      <Label className="text-xs text-muted-foreground">${t.notesLabel}</Label>
                       <Textarea
                         value={slab.notes}
                         onChange={(e) => updateSlab(slab.id, 'notes', e.target.value)}
-                        placeholder="ملاحظات إضافية..."
+                        placeholder={t.notesPlaceholder}
                         className="min-h-[50px] text-sm resize-y"
                         rows={1}
                         disabled={!isEditing}
@@ -1358,7 +1391,7 @@ export default function BeamSlab({ data, onSave }: BeamSlabProps) {
                       <Collapsible open={isOpen} onOpenChange={() => toggleResult(slab.id)}>
                         <CollapsibleTrigger className="w-full flex items-center justify-center gap-1.5 px-4 py-2 mt-3 border-t text-xs text-muted-foreground hover:bg-muted/50 transition-colors rounded-b-xl">
                           {isOpen ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
-                          {isOpen ? 'إخفاء النتائج' : 'عرض النتائج'}
+                          {isOpen ? t.cancel : t.resultsTitle}
                         </CollapsibleTrigger>
                         <CollapsibleContent>
                           <div className="pt-3 space-y-2">
@@ -1367,17 +1400,17 @@ export default function BeamSlab({ data, onSave }: BeamSlabProps) {
                               <>
                                 <ResultRow
                                   icon={<Ruler className="h-4 w-4 text-muted-foreground" />}
-                                  label="السماكة الدنيا المطلوبة"
-                                  value={`${result.hMin.toFixed(1)} سم`}
+                                  label={t.hMin}
+                                  value={`${result.hMin.toFixed(1)} ${t.cm}`}
                                 />
                                 <ResultRow
                                   icon={<Ruler className="h-4 w-4 text-muted-foreground" />}
-                                  label="السماكة المنفذة"
-                                  value={`${h.toFixed(1)} سم`}
+                                  label={t.thicknessCheck}
+                                  value={`${h.toFixed(1)} ${t.cm}`}
                                 />
                                 <StatusBanner
                                   safe={result.thicknessSafe}
-                                  label={result.thicknessSafe ? 'شرط السماكة — محقق' : 'شرط السماكة — غير محقق'}
+                                  label={result.thicknessSafe ? '${t.thicknessCheck} — ${t.safeVerified}' : '${t.thicknessCheck} — ${t.unsafeNotVerified}'}
                                 />
                               </>
                             )}
@@ -1387,54 +1420,54 @@ export default function BeamSlab({ data, onSave }: BeamSlabProps) {
                               <>
                                 <div className="pt-2" />
                                 <div className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide px-1">
-                                  فحص الانعطاف (شريحة 1م)
+                                  ${t.flexureCheck}
                                 </div>
                                 {result.Mpositive > 0 && (
                                   <ResultRow
                                     icon={<Gauge className="h-4 w-4 text-muted-foreground" />}
-                                    label="العزم الموجب M+ (طن.سم/م)"
+                                    label={`${t.momentLabel} M+ (${t.tonM})`}
                                     value={`${result.Mpositive.toFixed(2)}`}
                                   />
                                 )}
                                 {result.Mnegative > 0 && (
                                   <ResultRow
                                     icon={<Gauge className="h-4 w-4 text-muted-foreground" />}
-                                    label="العزم السالب M- (طن.سم/م)"
+                                    label={`${t.momentLabel} M- (${t.tonM})`}
                                     value={`${result.Mnegative.toFixed(2)}`}
                                   />
                                 )}
                                 <ResultRow
                                   icon={<Gauge className="h-4 w-4 text-muted-foreground" />}
-                                  label="إجهاد الخرسانة fc"
-                                  value={`${result.fcStress.toFixed(2)} / ${result.fcAllow.toFixed(2)} كغ/سم²`}
+                                  label={t.fcStress}
+                                  value={`${result.fcStress.toFixed(2)} / ${result.fcAllow.toFixed(2)} ${t.kgCm2}`}
                                   safe={result.fcStress <= result.fcAllow}
                                 />
                                 <ResultRow
                                   icon={<Gauge className="h-4 w-4 text-muted-foreground" />}
-                                  label="إجهاد الحديد fs"
-                                  value={`${result.fsStress.toFixed(2)} / ${result.fsAllow.toFixed(2)} كغ/سم²`}
+                                  label={t.fsStress}
+                                  value={`${result.fsStress.toFixed(2)} / ${result.fsAllow.toFixed(2)} ${t.kgCm2}`}
                                   safe={result.fsStress <= result.fsAllow}
                                 />
                                 <ResultRow
                                   icon={<Ruler className="h-4 w-4 text-muted-foreground" />}
-                                  label="العمق الفعال d / kd / jd"
-                                  value={`${(h - (parseFloat(slab.cover) || 2.5)).toFixed(1)} / ${result.kd.toFixed(2)} / ${result.jd.toFixed(2)} سم`}
+                                  label={`${t.effectiveDepth} d / kd / jd`}
+                                  value={`${(h - (parseFloat(slab.cover) || 2.5)).toFixed(1)} / ${result.kd.toFixed(2)} / ${result.jd.toFixed(2)} ${t.cm}`}
                                 />
                                 <ResultRow
                                   icon={<Ruler className="h-4 w-4 text-muted-foreground" />}
-                                  label="نسبة التسليح ρ"
-                                  value={`${(As > 0 && d > 0 ? (As / (100 * d)) : 0).toFixed(4)}`}
+                                  label={`${t.reinforcementCheck} ρ`}
+                                  value={`${(result.AsProvided > 0 ? result.omega : 0).toFixed(4)}`}
                                   safe={!result.overReinforced}
                                 />
                                 {result.overReinforced && (
                                   <div className="flex items-start gap-2 p-3 rounded-lg bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800">
                                     <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
-                                    <span className="text-xs text-amber-700 dark:text-amber-300">مقطع مُصلح (kd &gt; kb — تسليح زائد وفق WSD)</span>
+                                    <span className="text-xs text-amber-700 dark:text-amber-300">${t.overReinforced} (kd &gt; kb — WSD)</span>
                                   </div>
                                 )}
                                 <StatusBanner
                                   safe={result.flexureSafe}
-                                  label={result.flexureSafe ? 'فحص الانعطاف — محقق' : 'فحص الانعطاف — غير محقق'}
+                                  label={result.flexureSafe ? '${t.flexureCheck} — ${t.safeVerified}' : '${t.flexureCheck} — ${t.unsafeNotVerified}'}
                                 />
                               </>
                             )}
@@ -1444,22 +1477,22 @@ export default function BeamSlab({ data, onSave }: BeamSlabProps) {
                               <>
                                 <div className="pt-2" />
                                 <div className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide px-1">
-                                  فحص القص (شريحة 1م)
+                                  ${t.shearCheck}
                                 </div>
                                 <ResultRow
                                   icon={<ShieldCheck className="h-4 w-4 text-muted-foreground" />}
-                                  label="إجهاد القص v"
-                                  value={`${result.vActual.toFixed(2)} كغ/سم²`}
+                                  label={`${t.shearCheck} v`}
+                                  value={`${result.vActual.toFixed(2)} ${t.kgCm2}`}
                                   safe={result.vActual <= result.vcVal}
                                 />
                                 <ResultRow
                                   icon={<ShieldCheck className="h-4 w-4 text-muted-foreground" />}
-                                  label="مقاومة الخرسانة للقص vc"
-                                  value={`${result.vcVal.toFixed(2)} كغ/سم²`}
+                                  label={`${t.shearCheck} vc`}
+                                  value={`${result.vcVal.toFixed(2)} ${t.kgCm2}`}
                                 />
                                 <StatusBanner
                                   safe={result.sectionSafe}
-                                  label={result.sectionSafe ? 'فحص القص — محقق' : 'فحص القص — غير محقق'}
+                                  label={result.sectionSafe ? '${t.shearCheck} — ${t.safeVerified}' : '${t.shearCheck} — ${t.unsafeNotVerified}'}
                                 />
                               </>
                             )}
@@ -1470,18 +1503,18 @@ export default function BeamSlab({ data, onSave }: BeamSlabProps) {
                                 <div className="pt-2" />
                                 <ResultRow
                                   icon={<Ruler className="h-4 w-4 text-muted-foreground" />}
-                                  label="التسليح المقدم"
-                                  value={`${result.AsProvided.toFixed(2)} سم²/م`}
+                                  label={t.reinforcementCheck}
+                                  value={`${result.AsProvided.toFixed(2)} ${t.cm}²/m`}
                                   safe={result.rebarSafe}
                                 />
                                 <ResultRow
                                   icon={<Ruler className="h-4 w-4 text-muted-foreground" />}
-                                  label="التسليح الدنيا المطلوب"
-                                  value={`${result.asMin.toFixed(2)} سم²/م`}
+                                  label={t.reinforcementCheck}
+                                  value={`${result.asMin.toFixed(2)} ${t.cm}²/m`}
                                 />
                                 <StatusBanner
                                   safe={result.rebarSafe}
-                                  label={result.rebarSafe ? 'شرط التسليح الدنيا — محقق' : 'شرط التسليح الدنيا — غير محقق'}
+                                  label={result.rebarSafe ? '${t.reinforcementCheck} — ${t.safeVerified}' : '${t.reinforcementCheck} — ${t.unsafeNotVerified}'}
                                 />
                               </>
                             )}
@@ -1491,7 +1524,7 @@ export default function BeamSlab({ data, onSave }: BeamSlabProps) {
                               <div className="pt-2">
                                 <StatusBanner
                                   safe={result.punchingSafe}
-                                  label={result.punchingSafe ? 'قص الثقب — آمن (محقق)' : 'قص الثقب — غير آمن (غير محقق)'}
+                                  label={result.punchingSafe ? '${t.punchingCheck} — ${t.safeVerified}' : '${t.punchingCheck} — ${t.unsafeNotVerified}'}
                                 />
                               </div>
                             )}
@@ -1511,7 +1544,7 @@ export default function BeamSlab({ data, onSave }: BeamSlabProps) {
                   onClick={addSlab}
                 >
                   <Plus className="h-4 w-4 me-2" />
-                  إضافة بلاطة جديدة
+                  ${t.addElement}
                 </Button>
               )}
             </div>
@@ -1522,7 +1555,7 @@ export default function BeamSlab({ data, onSave }: BeamSlabProps) {
             <div className="space-y-4">
               {/* Beam Sub-type Selector */}
               <div className="space-y-2">
-                <Label className="text-sm font-medium text-foreground/80">نوع الجائز</Label>
+                <Label className="text-sm font-medium text-foreground/80">${t.beamType}</Label>
                 <Select
                   value={currentBeamType}
                   onValueChange={(val) => {
@@ -1540,16 +1573,16 @@ export default function BeamSlab({ data, onSave }: BeamSlabProps) {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {BEAM_SUB_TYPE_OPTIONS.map((opt) => (
-                      <SelectItem key={opt.value} value={opt.value}>
-                        {opt.label}
+                    {BEAM_SUB_TYPE_VALUES.map((val) => (
+                      <SelectItem key={val} value={val}>
+                        {getBeamSubTypeLabel(val)}
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
                 {currentBeamType === 'hidden' && (
                   <p className="text-[10px] text-muted-foreground">
-                    الجائز المخفي يأخذ سماكة البلاطة الهوردية. أدخل السماكة الكلية للبلاطة في حقل "عمق المقطع".
+                    ${t.beamHidden}
                   </p>
                 )}
               </div>
@@ -1574,7 +1607,7 @@ export default function BeamSlab({ data, onSave }: BeamSlabProps) {
                     {/* Entry Header */}
                     <div className="flex items-center justify-between mb-3">
                       <span className="text-xs font-semibold text-muted-foreground bg-muted px-2.5 py-1 rounded-md">
-                        {isHidden ? 'جائز مخفي' : 'جائز ساقط'} #{index + 1}
+                        {getBeamSubTypeLabel(beam.beamSubType)} #{index + 1}
                       </span>
                       <Button
                         variant="ghost"
@@ -1591,7 +1624,7 @@ export default function BeamSlab({ data, onSave }: BeamSlabProps) {
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                       {/* Name */}
                       <div className="space-y-1">
-                        <Label className="text-xs text-muted-foreground">اسم الجائز</Label>
+                        <Label className="text-xs text-muted-foreground">${t.beamName}</Label>
                         <Input
                           value={beam.name}
                           onChange={(e) => updateBeam(beam.id, 'name', e.target.value)}
@@ -1603,7 +1636,7 @@ export default function BeamSlab({ data, onSave }: BeamSlabProps) {
 
                       {/* Floor */}
                       <div className="space-y-1">
-                        <Label className="text-xs text-muted-foreground">الطابق</Label>
+                        <Label className="text-xs text-muted-foreground">${t.floorLabelShort}</Label>
                         <Input
                           value={beam.floor}
                           onChange={(e) => updateBeam(beam.id, 'floor', e.target.value)}
@@ -1615,14 +1648,14 @@ export default function BeamSlab({ data, onSave }: BeamSlabProps) {
 
                       {/* Support Condition */}
                       <div className="space-y-1">
-                        <Label className="text-xs text-muted-foreground">طبيعة الاستناد</Label>
+                        <Label className="text-xs text-muted-foreground">${t.supportNature}</Label>
                         <Select
                           value={beam.supportCondition}
                           onValueChange={(val) => updateBeam(beam.id, 'supportCondition', val)}
                           disabled={!isEditing}
                         >
                           <SelectTrigger className="h-9 text-sm">
-                            <SelectValue placeholder="اختر..." />
+                            <SelectValue placeholder="..." />
                           </SelectTrigger>
                           <SelectContent>
                             {STANDARD_SUPPORT_CONDITIONS.map((c) => (
@@ -1636,7 +1669,7 @@ export default function BeamSlab({ data, onSave }: BeamSlabProps) {
 
                       {/* Span */}
                       <div className="space-y-1">
-                        <Label className="text-xs text-muted-foreground">المجاز (سم)</Label>
+                        <Label className="text-xs text-muted-foreground">${t.span}</Label>
                         <Input
                           type="number"
                           value={beam.span}
@@ -1651,13 +1684,13 @@ export default function BeamSlab({ data, onSave }: BeamSlabProps) {
                       {/* Width */}
                       <div className="space-y-1">
                         <Label className="text-xs text-muted-foreground">
-                          عرض المقطع b (سم)
+                          ${t.sectionWidthB}
                         </Label>
                         <Input
                           type="number"
                           value={beam.width}
                           onChange={(e) => updateBeam(beam.id, 'width', e.target.value)}
-                          placeholder={isHidden ? 'عرض العصب' : '0'}
+                          placeholder={isHidden ? '0' : '0'}
                           className="h-9 text-sm"
                           dir="ltr"
                           disabled={!isEditing}
@@ -1667,13 +1700,13 @@ export default function BeamSlab({ data, onSave }: BeamSlabProps) {
                       {/* Depth */}
                       <div className="space-y-1">
                         <Label className="text-xs text-muted-foreground">
-                          {isHidden ? 'سماكة البلاطة الكلية h (سم)' : 'عمق المقطع h (سم)'}
+                          {isHidden ? `${t.thicknessCheck} h (${t.cm})` : `${t.beamDepth} (${t.cm})`}
                         </Label>
                         <Input
                           type="number"
                           value={beam.depth}
                           onChange={(e) => updateBeam(beam.id, 'depth', e.target.value)}
-                          placeholder={isHidden ? 'سمك الغطاء + العصب' : '0'}
+                          placeholder={isHidden ? '0' : '0'}
                           className="h-9 text-sm"
                           dir="ltr"
                           disabled={!isEditing}
@@ -1682,7 +1715,7 @@ export default function BeamSlab({ data, onSave }: BeamSlabProps) {
 
                       {/* Cover */}
                       <div className="space-y-1">
-                        <Label className="text-xs text-muted-foreground">الغطاء (سم)</Label>
+                        <Label className="text-xs text-muted-foreground">${t.beamCover}</Label>
                         <Input
                           type="number"
                           value={beam.cover}
@@ -1696,7 +1729,7 @@ export default function BeamSlab({ data, onSave }: BeamSlabProps) {
 
                       {/* Rebar Count */}
                       <div className="space-y-1">
-                        <Label className="text-xs text-muted-foreground">عدد حديد التسليح</Label>
+                        <Label className="text-xs text-muted-foreground">${t.rebarCount}</Label>
                         <Input
                           type="number"
                           value={beam.rebarCount}
@@ -1710,19 +1743,19 @@ export default function BeamSlab({ data, onSave }: BeamSlabProps) {
 
                       {/* Rebar Diameter */}
                       <div className="space-y-1">
-                        <Label className="text-xs text-muted-foreground">قطر الحديد (مم)</Label>
+                        <Label className="text-xs text-muted-foreground">${t.rebarDiameter}</Label>
                         <Select
                           value={beam.rebarDiameter}
                           onValueChange={(v) => updateBeam(beam.id, 'rebarDiameter', v)}
                           disabled={!isEditing}
                         >
                           <SelectTrigger className="h-9 text-sm">
-                            <SelectValue placeholder="اختر..." />
+                            <SelectValue placeholder="..." />
                           </SelectTrigger>
                           <SelectContent>
                             {REBAR_DIAMETER_OPTIONS.map((d) => (
                               <SelectItem key={d} value={d}>
-                                {d} مم
+                                {d} mm
                               </SelectItem>
                             ))}
                           </SelectContent>
@@ -1731,7 +1764,7 @@ export default function BeamSlab({ data, onSave }: BeamSlabProps) {
 
                       {/* Moment */}
                       <div className="space-y-1">
-                        <Label className="text-xs text-muted-foreground">العزم (طن.سم)</Label>
+                        <Label className="text-xs text-muted-foreground">${t.momentLabel}</Label>
                         <Input
                           type="number"
                           value={beam.moment}
@@ -1745,7 +1778,7 @@ export default function BeamSlab({ data, onSave }: BeamSlabProps) {
 
                       {/* Shear */}
                       <div className="space-y-1">
-                        <Label className="text-xs text-muted-foreground">القوة القاصة (طن)</Label>
+                        <Label className="text-xs text-muted-foreground">${t.shearLabel}</Label>
                         <Input
                           type="number"
                           value={beam.shear}
@@ -1759,7 +1792,7 @@ export default function BeamSlab({ data, onSave }: BeamSlabProps) {
 
                       {/* Stirrup Diameter */}
                       <div className="space-y-1">
-                        <Label className="text-xs text-muted-foreground">قطر الأسوار (مم)</Label>
+                        <Label className="text-xs text-muted-foreground">${t.stirrupDiameterLabel}</Label>
                         <Select
                           value={beam.stirrupDiameter}
                           onValueChange={(v) => updateBeam(beam.id, 'stirrupDiameter', v)}
@@ -1771,7 +1804,7 @@ export default function BeamSlab({ data, onSave }: BeamSlabProps) {
                           <SelectContent>
                             {STIRRUP_DIAMETER_OPTIONS.map((d) => (
                               <SelectItem key={d} value={d}>
-                                {d} مم
+                                {d} mm
                               </SelectItem>
                             ))}
                           </SelectContent>
@@ -1780,7 +1813,7 @@ export default function BeamSlab({ data, onSave }: BeamSlabProps) {
 
                       {/* Stirrup Legs */}
                       <div className="space-y-1">
-                        <Label className="text-xs text-muted-foreground">عدد فروع الأسوار</Label>
+                        <Label className="text-xs text-muted-foreground">${t.stirrupLegsLabel}</Label>
                         <Select
                           value={beam.stirrupLegs}
                           onValueChange={(v) => updateBeam(beam.id, 'stirrupLegs', v)}
@@ -1801,7 +1834,7 @@ export default function BeamSlab({ data, onSave }: BeamSlabProps) {
 
                       {/* Fs — Stirrup Steel Stress */}
                       <div className="space-y-1">
-                        <Label className="text-xs text-muted-foreground">إجهاد الحديد للأساور Fs (كغ/سم²)</Label>
+                        <Label className="text-xs text-muted-foreground">${t.fsLabel}</Label>
                         <Input
                           type="number"
                           value={beam.Fs}
@@ -1816,11 +1849,11 @@ export default function BeamSlab({ data, onSave }: BeamSlabProps) {
 
                     {/* Notes */}
                     <div className="mt-3 space-y-1">
-                      <Label className="text-xs text-muted-foreground">ملاحظات</Label>
+                      <Label className="text-xs text-muted-foreground">${t.notesLabel}</Label>
                       <Textarea
                         value={beam.notes}
                         onChange={(e) => updateBeam(beam.id, 'notes', e.target.value)}
-                        placeholder="ملاحظات إضافية..."
+                        placeholder={t.notesPlaceholder}
                         className="min-h-[50px] text-sm resize-y"
                         rows={1}
                         disabled={!isEditing}
@@ -1832,7 +1865,7 @@ export default function BeamSlab({ data, onSave }: BeamSlabProps) {
                       <Collapsible open={isOpen} onOpenChange={() => toggleResult(beam.id)}>
                         <CollapsibleTrigger className="w-full flex items-center justify-center gap-1.5 px-4 py-2 mt-3 border-t text-xs text-muted-foreground hover:bg-muted/50 transition-colors rounded-b-xl">
                           {isOpen ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
-                          {isOpen ? 'إخفاء النتائج' : 'عرض النتائج'}
+                          {isOpen ? t.cancel : t.resultsTitle}
                         </CollapsibleTrigger>
                         <CollapsibleContent>
                           <div className="pt-3 space-y-2">
@@ -1841,12 +1874,12 @@ export default function BeamSlab({ data, onSave }: BeamSlabProps) {
                               <>
                                 <ResultRow
                                   icon={<Ruler className="h-4 w-4 text-muted-foreground" />}
-                                  label="السماكة الدنيا المطلوبة"
-                                  value={`${result.hMin.toFixed(1)} سم`}
+                                  label={t.hMin}
+                                  value={`${result.hMin.toFixed(1)} ${t.cm}`}
                                 />
                                 <StatusBanner
                                   safe={result.thicknessSafe}
-                                  label={result.thicknessSafe ? 'شرط السماكة — محقق' : 'شرط السماكة — غير محقق'}
+                                  label={result.thicknessSafe ? '${t.thicknessCheck} — ${t.safeVerified}' : '${t.thicknessCheck} — ${t.unsafeNotVerified}'}
                                 />
                               </>
                             )}
@@ -1856,40 +1889,40 @@ export default function BeamSlab({ data, onSave }: BeamSlabProps) {
                               <>
                                 <div className="pt-2" />
                                 <div className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide px-1">
-                                  فحص الانعطاف
+                                  ${t.flexureCheck}
                                 </div>
                                 <ResultRow
                                   icon={<Ruler className="h-4 w-4 text-muted-foreground" />}
                                   label="n / kd / jd"
-                                  value={`${result.nFlex} / ${result.kdVal.toFixed(2)} / ${result.jdVal.toFixed(2)} سم`}
+                                  value={`${result.nFlex} / ${result.kdVal.toFixed(2)} / ${result.jdVal.toFixed(2)} ${t.cm}`}
                                 />
                                 <ResultRow
                                   icon={<Gauge className="h-4 w-4 text-muted-foreground" />}
-                                  label="إجهاد الخرسانة fc"
-                                  value={`${result.fcStress.toFixed(2)} / ${result.fcAllow.toFixed(2)} كغ/سم²`}
+                                  label={t.fcStress}
+                                  value={`${result.fcStress.toFixed(2)} / ${result.fcAllow.toFixed(2)} ${t.kgCm2}`}
                                   safe={result.fcStress <= result.fcAllow}
                                 />
                                 <ResultRow
                                   icon={<Gauge className="h-4 w-4 text-muted-foreground" />}
-                                  label="إجهاد الحديد fs"
-                                  value={`${result.fsStress.toFixed(2)} / ${result.fsAllow.toFixed(2)} كغ/سم²`}
+                                  label={t.fsStress}
+                                  value={`${result.fsStress.toFixed(2)} / ${result.fsAllow.toFixed(2)} ${t.kgCm2}`}
                                   safe={result.fsStress <= result.fsAllow}
                                 />
                                 <ResultRow
                                   icon={<Ruler className="h-4 w-4 text-muted-foreground" />}
-                                  label="نسبة التسليح ρ"
+                                  label={`${t.reinforcementCheck} ρ`}
                                   value={`${result.omegaVal.toFixed(4)}`}
                                   safe={!result.overReinforced}
                                 />
                                 {result.overReinforced && (
                                   <div className="flex items-start gap-2 p-3 rounded-lg bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800">
                                     <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
-                                    <span className="text-xs text-amber-700 dark:text-amber-300">مقطع مُصلح (kd &gt; kb — تسليح زائد وفق WSD)</span>
+                                    <span className="text-xs text-amber-700 dark:text-amber-300">${t.overReinforced} (kd &gt; kb — WSD)</span>
                                   </div>
                                 )}
                                 <StatusBanner
                                   safe={result.flexureSafe}
-                                  label={result.flexureSafe ? 'فحص الانعطاف — محقق' : 'فحص الانعطاف — غير محقق'}
+                                  label={result.flexureSafe ? '${t.flexureCheck} — ${t.safeVerified}' : '${t.flexureCheck} — ${t.unsafeNotVerified}'}
                                 />
                               </>
                             )}
@@ -1900,23 +1933,23 @@ export default function BeamSlab({ data, onSave }: BeamSlabProps) {
                                 <div className="pt-2" />
                                 <ResultRow
                                   icon={<ShieldCheck className="h-4 w-4 text-muted-foreground" />}
-                                  label="إجهاد القص v"
-                                  value={`${result.vActual.toFixed(2)} كغ/سم²`}
+                                  label={`${t.shearCheck} v`}
+                                  value={`${result.vActual.toFixed(2)} ${t.kgCm2}`}
                                   safe={result.vActual <= result.vcVal}
                                 />
                                 <ResultRow
                                   icon={<ShieldCheck className="h-4 w-4 text-muted-foreground" />}
-                                  label="مقاومة الخرسانة للقص vc"
-                                  value={`${result.vcVal.toFixed(2)} كغ/سم²`}
+                                  label={`${t.shearCheck} vc`}
+                                  value={`${result.vcVal.toFixed(2)} ${t.kgCm2}`}
                                 />
                                 <StatusBanner
                                   safe={result.sectionSafe}
-                                  label={result.sectionSafe ? 'فحص القص — محقق (v ≤ vmax)' : 'فحص القص — غير محقق (يتجاوز vmax)'}
+                                  label={result.sectionSafe ? `${t.shearCheck} — ${t.safeVerified} (v ≤ vmax)` : `${t.shearCheck} — ${t.unsafeNotVerified} (v > vmax)`}
                                 />
                                 {result.stirrupsNeeded && (
                                   <StatusBanner
                                     safe={result.shearSafe}
-                                    label={result.shearSafe ? 'لا تحتاج أسوار (v ≤ vc)' : 'تحتاج أسوار قص (v > vc)'}
+                                    label={result.shearSafe ? `${t.stirrupCheck} (v ≤ vc)` : `${t.stirrupCheck} (v > vc)`}
                                   />
                                 )}
                               </>
@@ -1928,18 +1961,18 @@ export default function BeamSlab({ data, onSave }: BeamSlabProps) {
                                 <div className="pt-2" />
                                 <ResultRow
                                   icon={<Ruler className="h-4 w-4 text-muted-foreground" />}
-                                  label="التسليح المقدم"
-                                  value={`${result.As.toFixed(2)} سم²`}
+                                  label={t.reinforcementCheck}
+                                  value={`${result.As.toFixed(2)} ${t.cm}²`}
                                   safe={result.rebarSafe}
                                 />
                                 <ResultRow
                                   icon={<Ruler className="h-4 w-4 text-muted-foreground" />}
-                                  label="التسليح الدنيا المطلوب"
-                                  value={`${result.asMin.toFixed(2)} سم²`}
+                                  label={t.reinforcementCheck}
+                                  value={`${result.asMin.toFixed(2)} ${t.cm}²`}
                                 />
                                 <StatusBanner
                                   safe={result.rebarSafe}
-                                  label={result.rebarSafe ? 'شرط التسليح الدنيا — محقق' : 'شرط التسليح الدنيا — غير محقق'}
+                                  label={result.rebarSafe ? '${t.reinforcementCheck} — ${t.safeVerified}' : '${t.reinforcementCheck} — ${t.unsafeNotVerified}'}
                                 />
                               </>
                             )}
@@ -1950,18 +1983,18 @@ export default function BeamSlab({ data, onSave }: BeamSlabProps) {
                                 <div className="pt-2" />
                                 <ResultRow
                                   icon={<Ruler className="h-4 w-4 text-muted-foreground" />}
-                                  label="التباعد الأقصى smax"
-                                  value={`${result.stirrupSmax} سم`}
+                                  label={t.maxSpacing + " smax"}
+                                  value={`${result.stirrupSmax} ${t.cm}`}
                                 />
                                 <ResultRow
                                   icon={<Ruler className="h-4 w-4 text-muted-foreground" />}
-                                  label="تباعد الأطواق المحسوب"
-                                  value={`${result.stirrupSpacing} سم`}
+                                  label={t.stirrupSpacing}
+                                  value={`${result.stirrupSpacing} ${t.cm}`}
                                   safe={result.stirrupSafe}
                                 />
                                 <StatusBanner
                                   safe={result.stirrupSafe}
-                                  label={result.stirrupSafe ? 'الأطواق كافية — محقق' : 'الأطواق غير كافية — غير محقق'}
+                                  label={result.stirrupSafe ? `${t.stirrupCheck} — ${t.safeVerified}` : `${t.stirrupCheck} — ${t.unsafeNotVerified}`}
                                 />
                               </>
                             )}
@@ -1981,7 +2014,7 @@ export default function BeamSlab({ data, onSave }: BeamSlabProps) {
                   onClick={addBeam}
                 >
                   <Plus className="h-4 w-4 me-2" />
-                  إضافة جائز جديد
+                  {t.addElement}
                 </Button>
               )}
             </div>
@@ -1998,7 +2031,7 @@ export default function BeamSlab({ data, onSave }: BeamSlabProps) {
             className="border-emerald-300 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 px-8"
           >
             <Edit3 className="h-4 w-4 me-2" />
-            تعديل
+            {t.editData}
           </Button>
         ) : (
           <Button
@@ -2006,7 +2039,7 @@ export default function BeamSlab({ data, onSave }: BeamSlabProps) {
             className="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white shadow-md hover:shadow-lg transition-all duration-200 px-8"
           >
             <Save className="h-4 w-4 me-2" />
-            حفظ
+            {t.saveData}
           </Button>
         )}
       </div>

@@ -78,7 +78,7 @@ function fileToBase64(file: File): Promise<string> {
 // ===================== Main Component =====================
 
 export default function ElectricalReport({ data, onSave }: ElectricalReportProps) {
-  const { isRTL } = useTranslation();
+  const { t, isRTL } = useTranslation();
 
   const [formData, setFormData] = useState<ElectricalData>(() => computeInitialData(data));
   const [isEditing, setIsEditing] = useState(false);
@@ -93,6 +93,32 @@ export default function ElectricalReport({ data, onSave }: ElectricalReportProps
     setIsEditing(false);
     setPendingData(null);
   }
+
+  // ---- Option Label Mappings ----
+
+  const supplyOptionLabels: Record<string, string> = {
+    'شبكة عامة': t.publicGrid,
+    'شبكة خاصة': t.privateGrid,
+    'مولدة': t.generator,
+    'طاقة بديلة': t.alternative,
+    'مختلط': t.mixed,
+  };
+
+  const conditionOptionLabels: Record<string, string> = {
+    'ممتازة': t.conditionExcellentShort,
+    'جيدة': t.conditionGoodShort,
+    'متوسطة': t.conditionFairShort,
+    'سيئة': t.conditionPoorShort,
+  };
+
+  const lowCurrentOptionLabels: Record<string, string> = {
+    'منظومة التحكم': t.controlSystem,
+    'منظومة إنذار الحريق': t.fireAlarm,
+    'منظومة المراقبة والكاميرات': t.surveillanceSystem,
+    'شبكات البيانات والاتصالات': t.dataNetwork,
+    'المراقبة الحرارية والذكية': t.thermalMonitoring,
+    'أخرى': t.otherSystem,
+  };
 
   // ---- Change Handlers ----
 
@@ -164,7 +190,8 @@ export default function ElectricalReport({ data, onSave }: ElectricalReportProps
     value: string,
     onChange: (val: string) => void,
     options: readonly string[],
-    helperText?: string
+    helperText?: string,
+    optionLabels?: Record<string, string>
   ) => (
     <div className="space-y-1.5">
       <Label className="text-xs font-medium text-foreground/70">{label}</Label>
@@ -172,15 +199,15 @@ export default function ElectricalReport({ data, onSave }: ElectricalReportProps
         value={value}
         onChange={(e) => onChange(e.target.value)}
         className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring appearance-none cursor-pointer"
-        dir="rtl"
+        dir={isRTL ? 'rtl' : 'ltr'}
         disabled={!isEditing}
       >
         <option value="" disabled>
-          اختر
+          {t.choose}
         </option>
         {options.map((opt) => (
           <option key={opt} value={opt}>
-            {opt}
+            {optionLabels?.[opt] ?? opt}
           </option>
         ))}
       </select>
@@ -226,9 +253,9 @@ export default function ElectricalReport({ data, onSave }: ElectricalReportProps
           disabled={images.length >= maxImages || !isEditing}
         >
           <Camera className="w-4 h-4" />
-          إضافة صور ({images.length}/{maxImages})
+          {t.addPhotos} ({images.length}/{maxImages})
         </Button>
-        <span className="text-[10px] text-gray-400">الحد الأقصى 1MB لكل صورة</span>
+        <span className="text-[10px] text-gray-400">{t.maxPhotoSize}</span>
       </div>
       <input
         ref={fileInputRef}
@@ -247,7 +274,7 @@ export default function ElectricalReport({ data, onSave }: ElectricalReportProps
             >
               <img
                 src={img}
-                alt={`صورة ${idx + 1}`}
+                alt={`${t.photo} ${idx + 1}`}
                 className="w-full h-full object-cover"
               />
               {isEditing && (
@@ -277,7 +304,7 @@ export default function ElectricalReport({ data, onSave }: ElectricalReportProps
             <div className="p-2 bg-white/20 rounded-lg backdrop-blur-sm">
               <Zap className="h-5 w-5" />
             </div>
-            <span>التقرير الكهربائي</span>
+            <span>{t.electricalReportTitle}</span>
           </CardTitle>
         </CardHeader>
       </Card>
@@ -286,34 +313,37 @@ export default function ElectricalReport({ data, onSave }: ElectricalReportProps
       <Card className="border-emerald-200/50 shadow-sm overflow-hidden">
         <CardHeader className="bg-gradient-to-r from-emerald-50 to-teal-50 dark:from-emerald-950/30 dark:to-teal-950/30 pb-3">
           <CardTitle className="text-sm font-semibold text-emerald-700 dark:text-emerald-400">
-            بيانات التقرير الكهربائي
+            {t.electricalReportData}
           </CardTitle>
         </CardHeader>
         <CardContent className="p-5 space-y-5">
           {/* Selects Grid */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {renderSelectField(
-              'التغذية الرئيسية',
+              t.mainSupply,
               formData.mainSupply,
               (v) => handleChange('mainSupply', v),
               ['شبكة عامة', 'شبكة خاصة', 'مولدة', 'طاقة بديلة', 'مختلط'] as const,
-              'حدد مصدر التغذية الكهربائية الرئيسي'
+              t.chooseSupply,
+              supplyOptionLabels
             )}
 
             {renderSelectField(
-              'حالة لوحة الكهرباء الرئيسية',
+              t.mainPanelCondition,
               formData.mainPanelCondition,
               (v) => handleChange('mainPanelCondition', v),
               ['ممتازة', 'جيدة', 'متوسطة', 'سيئة'] as const,
-              'تقييم الحالة العامة للوحة الكهرباء'
+              t.evaluateMainPanel,
+              conditionOptionLabels
             )}
 
             {renderSelectField(
-              'حالة الإضاءة',
+              t.lightingCondition,
               formData.lightingCondition,
               (v) => handleChange('lightingCondition', v),
               ['ممتازة', 'جيدة', 'متوسطة', 'سيئة'] as const,
-              'تقييم حالة منظومة الإضاءة'
+              t.evaluateLighting,
+              conditionOptionLabels
             )}
           </div>
 
@@ -321,7 +351,7 @@ export default function ElectricalReport({ data, onSave }: ElectricalReportProps
           <div className="border border-border/50 rounded-lg overflow-hidden bg-muted/20">
             <div className="flex items-center justify-between px-4 py-3 bg-muted/30">
               <Label className="text-sm font-medium text-foreground/80 cursor-pointer">
-                منظومة التيار الضعيف
+                {t.lowCurrentSystem}
               </Label>
               <Switch
                 checked={formData.hasLowCurrentSystem}
@@ -339,7 +369,7 @@ export default function ElectricalReport({ data, onSave }: ElectricalReportProps
             >
               <div className="overflow-hidden min-h-0">
                 <div className="p-4 pt-3 space-y-3">
-                  <p className="text-[10px] text-gray-400">اختر المنظومات المتوفرة</p>
+                  <p className="text-[10px] text-gray-400">{t.chooseLowCurrent}</p>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     {LOW_CURRENT_OPTIONS.map((option) => (
                       <label
@@ -351,7 +381,7 @@ export default function ElectricalReport({ data, onSave }: ElectricalReportProps
                           onCheckedChange={() => toggleLowCurrentSystem(option)}
                           disabled={!isEditing}
                         />
-                        <span className="text-sm text-foreground/80">{option}</span>
+                        <span className="text-sm text-foreground/80">{lowCurrentOptionLabels[option] ?? option}</span>
                       </label>
                     ))}
                   </div>
@@ -362,20 +392,20 @@ export default function ElectricalReport({ data, onSave }: ElectricalReportProps
 
           {/* Description Textarea */}
           {renderTextareaField(
-            'وصف التمديدات والتجهيزات الكهربائية',
+            t.electricalDescription,
             formData.installationsDescription,
             (v) => handleChange('installationsDescription', v),
-            'أدخل وصفاً تفصيلياً للتمديدات والتجهيزات الكهربائية...',
-            'صف نوع التمديدات والمواد المستخدمة وحالتها'
+            t.electricalDescriptionPlaceholder,
+            t.electricalDescriptionHint
           )}
 
           {/* Observations Textarea */}
           {renderTextareaField(
-            'الملاحظات والمشاهدات',
+            t.electricalObservations,
             formData.observations,
             (v) => handleChange('observations', v),
-            'أدخل الملاحظات والمشاهدات حول النظام الكهربائي...',
-            'سجل أي ملاحظات أو مشاهدات ميدانية'
+            t.electricalObservationsPlaceholder,
+            t.electricalObservationsHint
           )}
         </CardContent>
       </Card>
@@ -387,7 +417,7 @@ export default function ElectricalReport({ data, onSave }: ElectricalReportProps
             <div className="p-2 bg-white/20 rounded-lg backdrop-blur-sm">
               <Camera className="h-5 w-5" />
             </div>
-            <span>صور المنظومات والعيوب</span>
+            <span>{t.electricalPhotos}</span>
           </CardTitle>
         </CardHeader>
         <CardContent className="p-5">
@@ -410,14 +440,14 @@ export default function ElectricalReport({ data, onSave }: ElectricalReportProps
               className="gap-2 text-sm"
             >
               <X className="w-4 h-4" />
-              إلغاء
+              {t.cancel}
             </Button>
             <Button
               onClick={handleSave}
               className="gap-2 text-sm bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white shadow-md hover:shadow-lg transition-all duration-200 px-6"
             >
               <Save className="w-4 h-4" />
-              حفظ البيانات
+              {t.saveData}
             </Button>
           </>
         ) : (
@@ -426,7 +456,7 @@ export default function ElectricalReport({ data, onSave }: ElectricalReportProps
             className="gap-2 text-sm bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white shadow-md hover:shadow-lg transition-all duration-200 px-6"
           >
             <Pencil className="w-4 h-4" />
-            تعديل البيانات
+            {t.editData}
           </Button>
         )}
       </div>

@@ -5,8 +5,10 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { Info } from 'lucide-react';
 import Image from 'next/image';
+import { useTranslation } from '@/lib/i18n';
 
 export default function AboutPanel() {
+  const { t } = useTranslation();
   const currentYear = new Date().getFullYear();
 
   return (
@@ -33,7 +35,7 @@ export default function AboutPanel() {
 
           {/* Subtitle */}
           <p className="text-emerald-100 text-base leading-relaxed max-w-lg mx-auto">
-            تقييم فني للوضع الراهن للمباني الخرسانية المسلحة
+            {t.aboutTitle}
           </p>
         </div>
 
@@ -43,7 +45,7 @@ export default function AboutPanel() {
             <div className="flex items-center gap-2 px-4 py-2 bg-emerald-50 dark:bg-emerald-900/20 rounded-full border border-emerald-200 dark:border-emerald-800">
               <Info className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
               <span className="font-medium text-emerald-700 dark:text-emerald-400">
-                الإصدار 1.0
+                {t.aboutVersion}
               </span>
             </div>
             <div className="flex items-center gap-2 px-4 py-2 bg-teal-50 dark:bg-teal-900/20 rounded-full border border-teal-200 dark:border-teal-800">
@@ -60,7 +62,7 @@ export default function AboutPanel() {
                 <path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H19a1 1 0 0 1 1 1v18a1 1 0 0 1-1 1H6.5a1 1 0 0 1 0-5H20" />
               </svg>
               <span className="font-medium text-teal-700 dark:text-teal-400">
-                الكود العربي السوري نسخة 2024
+                {t.aboutCodeRef}
               </span>
             </div>
           </div>
@@ -69,9 +71,9 @@ export default function AboutPanel() {
 
           {/* Developer Section */}
           <div className="text-center">
-            <p className="text-sm font-semibold text-foreground mb-1">المطور</p>
+            <p className="text-sm font-semibold text-foreground mb-1">{t.developer}</p>
             <p className="text-base text-emerald-700 dark:text-emerald-400 font-medium">
-              المهندس الاستشاري المدني: بشار السليمان
+              {t.developerFullName}
             </p>
           </div>
 
@@ -80,7 +82,7 @@ export default function AboutPanel() {
           {/* Contact Information */}
           <div>
             <h3 className="text-sm font-semibold text-foreground text-center mb-4">
-              معلومات التواصل
+              {t.contactInfo}
             </h3>
             <div className="space-y-3">
               {/* Mobile */}
@@ -92,7 +94,7 @@ export default function AboutPanel() {
                   📱
                 </div>
                 <div className="min-w-0">
-                  <p className="text-xs text-muted-foreground">موبايل</p>
+                  <p className="text-xs text-muted-foreground">{t.mobile}</p>
                   <p className="text-sm font-medium text-foreground group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors" dir="ltr">
                     00963944653699
                   </p>
@@ -110,7 +112,7 @@ export default function AboutPanel() {
                   💬
                 </div>
                 <div className="min-w-0">
-                  <p className="text-xs text-muted-foreground">واتساب</p>
+                  <p className="text-xs text-muted-foreground">{t.whatsapp}</p>
                   <p className="text-sm font-medium text-foreground group-hover:text-green-600 dark:group-hover:text-green-400 transition-colors" dir="ltr">
                     00963944653699
                   </p>
@@ -126,7 +128,7 @@ export default function AboutPanel() {
                   📧
                 </div>
                 <div className="min-w-0">
-                  <p className="text-xs text-muted-foreground">بريد إلكتروني</p>
+                  <p className="text-xs text-muted-foreground">{t.email}</p>
                   <p className="text-sm font-medium text-foreground group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors" dir="ltr">
                     basharsam76@gmail.com
                   </p>
@@ -144,7 +146,7 @@ export default function AboutPanel() {
                   📘
                 </div>
                 <div className="min-w-0">
-                  <p className="text-xs text-muted-foreground">فيسبوك</p>
+                  <p className="text-xs text-muted-foreground">{t.facebook}</p>
                   <p className="text-sm font-medium text-foreground group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors truncate" dir="ltr">
                     facebook.com/Eng.basharalsulieman
                   </p>
@@ -158,7 +160,7 @@ export default function AboutPanel() {
           {/* Technology Stack */}
           <div className="text-center">
             <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">
-              التقنيات المستخدمة
+              {t.technologiesUsed}
             </h3>
             <div className="flex flex-wrap items-center justify-center gap-2">
               {[
@@ -186,7 +188,7 @@ export default function AboutPanel() {
               © {currentYear} B.S Evaluation
             </p>
             <p className="text-xs text-muted-foreground/70 mt-1">
-              جميع الحقوق محفوظة للمهندس بشار السليمان
+              {t.allRightsReserved}
             </p>
           </div>
         </CardContent>

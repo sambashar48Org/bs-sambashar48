@@ -88,6 +88,61 @@ const createDefaultFloor = (): FloorEntry => ({
   floorNotes: '',
 });
 
+// ─── Label Mapping Helpers ───────────────────────────────────────────────────
+
+const getConditionLabel = (value: string, t: Record<string, string>): string => {
+  const map: Record<string, string> = {
+    'ممتازة': t.conditionExcellent,
+    'جيدة': t.conditionGood,
+    'متوسطة': t.conditionFair,
+    'سيئة بحاجة اصلاح': t.conditionPoorRepair,
+    'سيئة بحاجة استبدال': t.conditionPoorReplace,
+  };
+  return map[value] || value;
+};
+
+const getFlooringTypeLabel = (value: string, t: Record<string, string>): string => {
+  const map: Record<string, string> = {
+    'بلاط موزاييك': t.flooringMosaic,
+    'سيراميك أرضيات': t.flooringCeramic,
+    'رخام': t.flooringMarble,
+    'غرانيت': t.flooringGranite,
+    'باركيه': t.flooringParquet,
+    'أخرى': t.flooringOther,
+  };
+  return map[value] || value;
+};
+
+const getWallCladdingLabel = (value: string, t: Record<string, string>): string => {
+  const map: Record<string, string> = {
+    'لا يوجد اكساء': t.wallNoCladding,
+    'طينة بدون دهان': t.wallPlasterNoPaint,
+    'طينة مع دهان عادي': t.wallPlasterPaint,
+    'طينة مع دهان ومعجونة': t.wallPlasterPaintPutty,
+    'سيراميك جدران': t.wallCeramic,
+    'اكساء ألواح جيبسم بورد': t.wallGypsumBoard,
+    'غرانيت': t.wallGranite,
+    'بلاستيك': t.wallPlastic,
+    'خشب': t.wallWood,
+    'أخرى': t.wallOther,
+  };
+  return map[value] || value;
+};
+
+const getWindowDoorTypeLabel = (value: string, t: Record<string, string>): string => {
+  const map: Record<string, string> = {
+    'حديد': t.windowDoorIron,
+    'خشب': t.windowDoorWood,
+    'المنيوم عادي': t.windowDoorAluminumStandard,
+    'المنيوم مقطع عريض': t.windowDoorAluminumWide,
+    'المنيوم تيكنال': t.windowDoorAluminumTechnal,
+    'PVC': t.windowDoorPvc,
+    'بلاستيك عادي': t.windowDoorPlastic,
+    'أخرى': t.windowDoorOther,
+  };
+  return map[value] || value;
+};
+
 function computeInitialData(data: Record<string, unknown>): ArchitecturalReportData {
   const defaultData: ArchitecturalReportData = {
     floors: [createDefaultFloor()],
@@ -129,7 +184,7 @@ function fileToBase64(file: File): Promise<string> {
 // ===================== Main Component =====================
 
 export default function ArchitecturalReport({ data, onSave }: ArchitecturalReportProps) {
-  const { isRTL } = useTranslation();
+  const { t, isRTL } = useTranslation();
 
   const [reportData, setReportData] = useState<ArchitecturalReportData>(() =>
     computeInitialData(data)
@@ -284,6 +339,9 @@ export default function ArchitecturalReport({ data, onSave }: ArchitecturalRepor
     };
   };
 
+  // Suppress unused variable warning — buildPayload is kept for future use
+  void buildPayload;
+
   // ===================== Render Helpers =====================
 
   const renderSelectField = (
@@ -291,6 +349,7 @@ export default function ArchitecturalReport({ data, onSave }: ArchitecturalRepor
     value: string,
     onChange: (val: string) => void,
     options: readonly string[],
+    getLabel: (val: string) => string,
     helperText?: string
   ) => (
     <div className="space-y-1.5">
@@ -299,14 +358,14 @@ export default function ArchitecturalReport({ data, onSave }: ArchitecturalRepor
         value={value}
         onChange={(e) => onChange(e.target.value)}
         className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring appearance-none cursor-pointer"
-        dir="rtl"
+        dir={isRTL ? 'rtl' : 'ltr'}
       >
         <option value="" disabled>
-          اختر
+          {t.choose}
         </option>
         {options.map((opt) => (
           <option key={opt} value={opt}>
-            {opt}
+            {getLabel(opt)}
           </option>
         ))}
       </select>
@@ -394,9 +453,9 @@ export default function ArchitecturalReport({ data, onSave }: ArchitecturalRepor
           disabled={images.length >= maxImages}
         >
           <Camera className="w-4 h-4" />
-          إضافة صور ({images.length}/{maxImages})
+          {t.addPhotos} ({images.length}/{maxImages})
         </Button>
-        <span className="text-[10px] text-gray-400">الحد الأقصى 1MB لكل صورة</span>
+        <span className="text-[10px] text-gray-400">{t.maxPhotoSize}</span>
       </div>
       <input
         ref={(el) => { savedFileInputs.current[inputKey] = el; }}
@@ -412,7 +471,7 @@ export default function ArchitecturalReport({ data, onSave }: ArchitecturalRepor
             <div key={idx} className="relative group rounded-lg overflow-hidden border border-border/50 bg-muted/20 aspect-square">
               <img
                 src={img}
-                alt={`صورة ${idx + 1}`}
+                alt={`${t.photo} ${idx + 1}`}
                 className="w-full h-full object-cover"
               />
               <button
@@ -451,13 +510,13 @@ export default function ArchitecturalReport({ data, onSave }: ArchitecturalRepor
             </div>
             <div className="text-start">
               <p className="text-sm font-semibold text-foreground">
-                الطابق {floor.floorNumber || index + 1}
+                {t.floorLabel} {floor.floorNumber || index + 1}
               </p>
               <p className="text-[10px] text-gray-400">
-                {floor.totalArea ? `${floor.totalArea} م²` : 'لم يتم تحديد المساحة'}
+                {floor.totalArea ? `${floor.totalArea} م²` : t.noAreaSpecified}
                 {floor.hasCracks && floor.crackType === 'structural' && (
                   <Badge variant="destructive" className="ms-2 text-[9px] px-1.5 py-0 h-4">
-                    إنشائي
+                    {t.structuralBadge}
                   </Badge>
                 )}
               </p>
@@ -472,7 +531,7 @@ export default function ArchitecturalReport({ data, onSave }: ArchitecturalRepor
                   removeFloor(index);
                 }}
                 className="p-1.5 rounded-md hover:bg-red-100 dark:hover:bg-red-900/30 text-red-500 hover:text-red-600 transition-colors"
-                title="حذف الطابق"
+                title={t.deleteFloor}
               >
                 <Trash2 className="w-4 h-4" />
               </button>
@@ -500,96 +559,104 @@ export default function ArchitecturalReport({ data, onSave }: ArchitecturalRepor
               <div>
                 <h4 className="text-xs font-semibold text-emerald-700 dark:text-emerald-400 mb-3 flex items-center gap-2">
                   <div className="w-1 h-4 rounded-full bg-emerald-500" />
-                  معلومات الطابق
+                  {t.floorInfo}
                 </h4>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                  {renderNumberField('رقم الطابق', floor.floorNumber, (v) => updateFloor(index, { floorNumber: v }), '', 'أدخل رقم الطابق')}
-                  {renderNumberField('مساحة الطابق الكلية', floor.totalArea, (v) => updateFloor(index, { totalArea: v }), 'م²', 'المساحة الكلية للطابق')}
-                  {renderNumberField('مساحة البروزات', floor.projectionArea, (v) => updateFloor(index, { projectionArea: v }), 'م²', 'اختياري', '0')}
-                  {renderNumberField('منسوب الطابق', floor.floorLevel, (v) => updateFloor(index, { floorLevel: v }), '', 'اختياري', '0')}
+                  {renderNumberField(t.floorNumber, floor.floorNumber, (v) => updateFloor(index, { floorNumber: v }), '', t.enterFloorNumber)}
+                  {renderNumberField(t.floorArea, floor.totalArea, (v) => updateFloor(index, { totalArea: v }), 'م²', t.totalFloorAreaHint)}
+                  {renderNumberField(t.floorProjections, floor.projectionArea, (v) => updateFloor(index, { projectionArea: v }), 'م²', t.optional, '0')}
+                  {renderNumberField(t.floorLevel, floor.floorLevel, (v) => updateFloor(index, { floorLevel: v }), '', t.optional, '0')}
                 </div>
               </div>
 
               {/* 2. Flooring */}
               {renderToggleSection(
-                'الأرضيات',
+                t.floors,
                 floor.flooring.enabled,
                 (v) => updateFloorSub(index, 'flooring', { enabled: v }),
                 <>
                   {renderSelectField(
-                    'اكساء الأرضيات',
+                    t.flooring,
                     floor.flooring.type,
                     (v) => updateFloorSub(index, 'flooring', { type: v }),
-                    FLOORING_TYPES
+                    FLOORING_TYPES,
+                    (val) => getFlooringTypeLabel(val, t)
                   )}
                   {renderSelectField(
-                    'حالة الأرضيات',
+                    t.floorCondition,
                     floor.flooring.condition,
                     (v) => updateFloorSub(index, 'flooring', { condition: v }),
-                    CONDITION_OPTIONS
+                    CONDITION_OPTIONS,
+                    (val) => getConditionLabel(val, t)
                   )}
                 </>
               )}
 
               {/* 3. Walls */}
               {renderToggleSection(
-                'الجدران',
+                t.walls,
                 floor.walls.enabled,
                 (v) => updateFloorSub(index, 'walls', { enabled: v }),
                 <>
                   {renderSelectField(
-                    'اكساء الجدران',
+                    t.wallCladding,
                     floor.walls.type,
                     (v) => updateFloorSub(index, 'walls', { type: v }),
-                    WALL_CLADDING_TYPES
+                    WALL_CLADDING_TYPES,
+                    (val) => getWallCladdingLabel(val, t)
                   )}
                   {renderSelectField(
-                    'حالة الجدران',
+                    t.wallCondition,
                     floor.walls.condition,
                     (v) => updateFloorSub(index, 'walls', { condition: v }),
-                    CONDITION_OPTIONS
+                    CONDITION_OPTIONS,
+                    (val) => getConditionLabel(val, t)
                   )}
                 </>
               )}
 
               {/* 4. Windows */}
               {renderToggleSection(
-                'النوافذ',
+                t.windows,
                 floor.windows.enabled,
                 (v) => updateFloorSub(index, 'windows', { enabled: v }),
                 <>
                   {renderSelectField(
-                    'نوع النوافذ',
+                    t.windowType,
                     floor.windows.type,
                     (v) => updateFloorSub(index, 'windows', { type: v }),
-                    WINDOW_DOOR_TYPES
+                    WINDOW_DOOR_TYPES,
+                    (val) => getWindowDoorTypeLabel(val, t)
                   )}
                   {renderSelectField(
-                    'حالة النوافذ',
+                    t.windowCondition,
                     floor.windows.condition,
                     (v) => updateFloorSub(index, 'windows', { condition: v }),
-                    CONDITION_OPTIONS
+                    CONDITION_OPTIONS,
+                    (val) => getConditionLabel(val, t)
                   )}
                 </>
               )}
 
               {/* 5. Doors */}
               {renderToggleSection(
-                'الأبواب',
+                t.doors,
                 floor.doors.enabled,
                 (v) => updateFloorSub(index, 'doors', { enabled: v }),
                 <>
                   {renderSelectField(
-                    'نوع الأبواب',
+                    t.doorType,
                     floor.doors.type,
                     (v) => updateFloorSub(index, 'doors', { type: v }),
-                    WINDOW_DOOR_TYPES
+                    WINDOW_DOOR_TYPES,
+                    (val) => getWindowDoorTypeLabel(val, t)
                   )}
                   {renderSelectField(
-                    'حالة الأبواب',
+                    t.doorCondition,
                     floor.doors.condition,
                     (v) => updateFloorSub(index, 'doors', { condition: v }),
-                    CONDITION_OPTIONS
+                    CONDITION_OPTIONS,
+                    (val) => getConditionLabel(val, t)
                   )}
                 </>
               )}
@@ -597,11 +664,11 @@ export default function ArchitecturalReport({ data, onSave }: ArchitecturalRepor
               {/* 6. Cracks */}
               <div className="border border-border/50 rounded-lg overflow-hidden bg-muted/20">
                 <div className="px-4 py-3 bg-muted/30">
-                  <Label className="text-sm font-medium text-foreground/80">التشققات</Label>
+                  <Label className="text-sm font-medium text-foreground/80">{t.cracks}</Label>
                 </div>
                 <div className="p-4 space-y-4">
                   <div className="flex items-center justify-between">
-                    <Label className="text-xs text-foreground/70">وجود تشققات</Label>
+                    <Label className="text-xs text-foreground/70">{t.cracksExist}</Label>
                     <Switch
                       checked={floor.hasCracks}
                       onCheckedChange={(v) => updateFloor(index, { hasCracks: v, crackType: '' })}
@@ -612,7 +679,7 @@ export default function ArchitecturalReport({ data, onSave }: ArchitecturalRepor
                     <div className="space-y-4 animate-in fade-in-0 slide-in-from-top-2 duration-300">
                       {/* Crack Type Selection */}
                       <div className="space-y-1.5">
-                        <Label className="text-xs font-medium text-foreground/70">نوع التشققات</Label>
+                        <Label className="text-xs font-medium text-foreground/70">{t.crackType}</Label>
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                           <button
                             type="button"
@@ -628,7 +695,7 @@ export default function ArchitecturalReport({ data, onSave }: ArchitecturalRepor
                                 : 'border-border/50 hover:border-amber-200 bg-card'
                             }`}
                           >
-                            تشققات غير إنشائية
+                            {t.nonStructuralCracks}
                           </button>
                           <button
                             type="button"
@@ -644,7 +711,7 @@ export default function ArchitecturalReport({ data, onSave }: ArchitecturalRepor
                                 : 'border-border/50 hover:border-red-200 bg-card'
                             }`}
                           >
-                            تشققات إنشائية
+                            {t.structuralCracks}
                             {floor.crackType === 'structural' && (
                               <Badge
                                 variant="destructive"
@@ -660,15 +727,15 @@ export default function ArchitecturalReport({ data, onSave }: ArchitecturalRepor
                       {/* Non-structural cracks description */}
                       {floor.crackType === 'non-structural' && (
                         <div className="space-y-2 animate-in fade-in-0 slide-in-from-top-1 duration-200">
-                          <Label className="text-xs font-medium text-foreground/70">وصف التشققات</Label>
+                          <Label className="text-xs font-medium text-foreground/70">{t.crackDescription}</Label>
                           <Textarea
                             value={floor.crackDescription}
                             onChange={(e) => updateFloor(index, { crackDescription: e.target.value })}
-                            placeholder="وصف مختصر للتشققات غير الإنشائية..."
+                            placeholder={t.crackPlaceholder}
                             className="min-h-[70px] resize-y text-sm"
                             dir={isRTL ? 'rtl' : 'ltr'}
                           />
-                          <p className="text-[10px] text-gray-400">هذه التشققات لن تظهر في التقرير الإنشائي</p>
+                          <p className="text-[10px] text-gray-400">{t.nonStructuralNote}</p>
                         </div>
                       )}
 
@@ -680,34 +747,34 @@ export default function ArchitecturalReport({ data, onSave }: ArchitecturalRepor
                             <AlertTriangle className="w-5 h-5 text-red-500 shrink-0 mt-0.5" />
                             <div>
                               <p className="text-sm font-semibold text-red-700 dark:text-red-400">
-                                رسالة ضرورة تبرير للتشققات الإنشائية
+                                {t.structuralCrackWarningTitle}
                               </p>
                               <p className="text-[11px] text-red-600/70 dark:text-red-400/70 mt-0.5">
-                                يجب توثيق التشققات الإنشائية بالتفصيل مع الصور، وستظهر في التقرير الإنشائي
+                                {t.structuralCrackWarning}
                               </p>
                             </div>
                           </div>
 
                           {/* Description */}
                           <div className="space-y-2">
-                            <Label className="text-xs font-medium text-foreground/70">وصف تفصيلي للتشققات</Label>
+                            <Label className="text-xs font-medium text-foreground/70">{t.crackDescriptionDetailed}</Label>
                             <Textarea
                               value={floor.structuralCrackDescription}
                               onChange={(e) =>
                                 updateFloor(index, { structuralCrackDescription: e.target.value })
                               }
-                              placeholder="الموقع، الاتجاه، العرض، الطول، العنصر المتشقق..."
+                              placeholder={t.structuralCrackPlaceholder}
                               className="min-h-[100px] resize-y text-sm"
                               dir={isRTL ? 'rtl' : 'ltr'}
                             />
                             <p className="text-[10px] text-gray-400">
-                              حدد الموقع والاتجاه والعرض والطول والعنصر الإنشائي المتشقق
+                              {t.structuralCrackDetail}
                             </p>
                           </div>
 
                           {/* Photos */}
                           <div className="space-y-2">
-                            <Label className="text-xs font-medium text-foreground/70">صور التشققات الإنشائية</Label>
+                            <Label className="text-xs font-medium text-foreground/70">{t.structuralCrackPhotos}</Label>
                             {renderImageUpload(
                               floor.structuralCrackPhotos,
                               (files) =>
@@ -726,11 +793,11 @@ export default function ArchitecturalReport({ data, onSave }: ArchitecturalRepor
 
               {/* 7. Floor Notes */}
               <div className="space-y-2">
-                <Label className="text-xs font-medium text-foreground/70">ملاحظات الطابق</Label>
+                <Label className="text-xs font-medium text-foreground/70">{t.floorNotes}</Label>
                 <Textarea
                   value={floor.floorNotes}
                   onChange={(e) => updateFloor(index, { floorNotes: e.target.value })}
-                  placeholder="ملاحظات إضافية حول هذا الطابق..."
+                  placeholder={t.floorNotesPlaceholder}
                   className="min-h-[70px] resize-y text-sm"
                   dir={isRTL ? 'rtl' : 'ltr'}
                 />
@@ -765,7 +832,7 @@ export default function ArchitecturalReport({ data, onSave }: ArchitecturalRepor
                 <polyline points="9 22 9 12 15 12 15 22" />
               </svg>
             </div>
-            <span>التقرير الوصفي المعماري</span>
+            <span>{t.architecturalDescReport}</span>
           </CardTitle>
         </CardHeader>
       </Card>
@@ -788,7 +855,7 @@ export default function ArchitecturalReport({ data, onSave }: ArchitecturalRepor
               <path d="M3 9h18" />
               <path d="M9 21V9" />
             </svg>
-            بيانات الطوابق ({reportData.floors.length})
+            {t.floorsData} ({reportData.floors.length})
           </h3>
           <Button
             onClick={addFloor}
@@ -797,7 +864,7 @@ export default function ArchitecturalReport({ data, onSave }: ArchitecturalRepor
             className="h-8 gap-1.5 text-xs border-emerald-300 dark:border-emerald-700 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/20"
           >
             <Plus className="h-3.5 w-3.5" />
-            إضافة طابق
+            {t.addFloor}
           </Button>
         </div>
 
@@ -811,7 +878,7 @@ export default function ArchitecturalReport({ data, onSave }: ArchitecturalRepor
             <div className="p-2 bg-white/20 rounded-lg backdrop-blur-sm">
               <ImageIcon className="h-5 w-5" />
             </div>
-            <span>صور التقرير المعماري</span>
+            <span>{t.architecturalPhotos}</span>
           </CardTitle>
         </CardHeader>
         <CardContent className="p-5">
@@ -832,7 +899,7 @@ export default function ArchitecturalReport({ data, onSave }: ArchitecturalRepor
             <div className="p-2 bg-white/20 rounded-lg backdrop-blur-sm">
               <Pencil className="h-5 w-5" />
             </div>
-            <span>ملاحظات عامة</span>
+            <span>{t.architecturalNotes}</span>
           </CardTitle>
         </CardHeader>
         <CardContent className="p-5">
@@ -841,7 +908,7 @@ export default function ArchitecturalReport({ data, onSave }: ArchitecturalRepor
             onChange={(e) =>
               setReportData((prev) => ({ ...prev, generalNotes: e.target.value }))
             }
-            placeholder="أدخل ملاحظات معمارية عامة..."
+            placeholder={t.architecturalNotesPlaceholder}
             className="min-h-[120px] resize-y text-sm"
             dir={isRTL ? 'rtl' : 'ltr'}
           />
@@ -858,14 +925,14 @@ export default function ArchitecturalReport({ data, onSave }: ArchitecturalRepor
               className="gap-2 text-sm"
             >
               <X className="w-4 h-4" />
-              إلغاء
+              {t.cancel}
             </Button>
             <Button
               onClick={handleSave}
               className="gap-2 text-sm bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white shadow-md hover:shadow-lg transition-all duration-200 px-6"
             >
               <Save className="w-4 h-4" />
-              حفظ البيانات
+              {t.saveData}
             </Button>
           </>
         ) : (
@@ -874,7 +941,7 @@ export default function ArchitecturalReport({ data, onSave }: ArchitecturalRepor
             className="gap-2 text-sm bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white shadow-md hover:shadow-lg transition-all duration-200 px-6"
           >
             <Pencil className="w-4 h-4" />
-            تعديل البيانات
+            {t.editData}
           </Button>
         )}
       </div>

@@ -48,7 +48,7 @@ const densityUnits = [
 ];
 
 export default function SettingsPanel() {
-  const { t, setLanguage } = useTranslation();
+  const { t } = useTranslation();
   const { language, units, setLanguage: setStoreLanguage, setUnits } = useSettingsStore();
 
   const [currentPassword, setCurrentPassword] = useState('');
@@ -58,7 +58,10 @@ export default function SettingsPanel() {
 
   const handleLanguageChange = (lang: string) => {
     setStoreLanguage(lang as 'ar' | 'en');
-    setLanguage(lang as 'ar' | 'en');
+    if (typeof window !== 'undefined') {
+      document.documentElement.dir = lang === 'ar' ? 'rtl' : 'ltr';
+      document.documentElement.lang = lang;
+    }
   };
 
   const handleUnitsChange = (field: string, value: string) => {
@@ -70,22 +73,22 @@ export default function SettingsPanel() {
 
   const handleChangePassword = async () => {
     if (!currentPassword || !newPassword || !confirmPassword) {
-      toast.error('يرجى ملء جميع الحقول المطلوبة');
+      toast.error(t.fillAllFields);
       return;
     }
 
     if (newPassword !== confirmPassword) {
-      toast.error('كلمات المرور غير متطابقة');
+      toast.error(t.passwordsNotMatch);
       return;
     }
 
     if (newPassword.length < 8) {
-      toast.error('كلمة المرور الجديدة يجب أن تكون 8 أحرف على الأقل');
+      toast.error(t.passwordMin8);
       return;
     }
 
     if (newPassword.length > 128) {
-      toast.error('كلمة المرور طويلة جداً (الحد الأقصى 128 حرف)');
+      toast.error(t.passwordMax128);
       return;
     }
 
@@ -103,15 +106,15 @@ export default function SettingsPanel() {
       const data = await response.json();
 
       if (response.ok) {
-        toast.success('تم تغيير كلمة المرور بنجاح');
+        toast.success(t.passwordChangeSuccess);
         setCurrentPassword('');
         setNewPassword('');
         setConfirmPassword('');
       } else {
-        toast.error(data.error || 'حدث خطأ أثناء تغيير كلمة المرور');
+        toast.error(data.error || t.passwordChangeError);
       }
     } catch {
-      toast.error('حدث خطأ في الاتصال بالخادم');
+      toast.error(t.connectionError);
     } finally {
       setIsChangingPassword(false);
     }
@@ -126,13 +129,13 @@ export default function SettingsPanel() {
             <div className="p-2 bg-white/20 rounded-lg backdrop-blur-sm">
               <Globe className="h-5 w-5" />
             </div>
-            <span>{language === 'ar' ? 'اللغة والعرض' : 'Language & Display'}</span>
+            <span>{t.languageAndDisplay}</span>
           </CardTitle>
         </CardHeader>
         <CardContent className="p-6">
           <div className="space-y-2 max-w-md">
             <Label className="text-sm font-medium text-foreground/80">
-              {language === 'ar' ? 'اللغة' : 'Language'}
+              {t.languageLabel}
             </Label>
             <Select
               value={language}
@@ -147,9 +150,7 @@ export default function SettingsPanel() {
               </SelectContent>
             </Select>
             <p className="text-xs text-muted-foreground mt-1">
-              {language === 'ar'
-                ? 'سيتم إعادة تحميل الصفحة عند تغيير اللغة'
-                : 'Page will reload when changing language'}
+              {t.languageChangeNote}
             </p>
           </div>
         </CardContent>
@@ -162,7 +163,7 @@ export default function SettingsPanel() {
             <div className="p-2 bg-white/20 rounded-lg backdrop-blur-sm">
               <Ruler className="h-5 w-5" />
             </div>
-            <span>{language === 'ar' ? 'إعدادات الوحدات' : 'Unit Settings'}</span>
+            <span>{t.unitSettings}</span>
           </CardTitle>
         </CardHeader>
         <CardContent className="p-6">
@@ -170,7 +171,7 @@ export default function SettingsPanel() {
             {/* Dimension Units */}
             <div className="space-y-2">
               <Label className="text-sm font-medium text-foreground/80">
-                {language === 'ar' ? 'وحدات الأبعاد' : 'Dimension Units'}
+                {t.dimensionUnits}
               </Label>
               <Select
                 value={units.dimension}
@@ -192,7 +193,7 @@ export default function SettingsPanel() {
             {/* Area Units */}
             <div className="space-y-2">
               <Label className="text-sm font-medium text-foreground/80">
-                {language === 'ar' ? 'وحدات المساحة' : 'Area Units'}
+                {t.areaUnits}
               </Label>
               <Select
                 value={units.area}
@@ -214,7 +215,7 @@ export default function SettingsPanel() {
             {/* Load Units */}
             <div className="space-y-2">
               <Label className="text-sm font-medium text-foreground/80">
-                {language === 'ar' ? 'وحدات الحمولات' : 'Load Units'}
+                {t.loadUnits}
               </Label>
               <Select
                 value={units.load}
@@ -236,7 +237,7 @@ export default function SettingsPanel() {
             {/* Stress Units */}
             <div className="space-y-2">
               <Label className="text-sm font-medium text-foreground/80">
-                {language === 'ar' ? 'وحدات الإجهادات' : 'Stress Units'}
+                {t.stressUnits}
               </Label>
               <Select
                 value={units.stress}
@@ -258,7 +259,7 @@ export default function SettingsPanel() {
             {/* Density Units */}
             <div className="space-y-2">
               <Label className="text-sm font-medium text-foreground/80">
-                {language === 'ar' ? 'وحدات الكثافة' : 'Density Units'}
+                {t.densityUnits}
               </Label>
               <Select
                 value={units.density}
@@ -280,9 +281,7 @@ export default function SettingsPanel() {
 
           <div className="mt-4 p-3 bg-emerald-50 dark:bg-emerald-900/20 rounded-lg border border-emerald-200 dark:border-emerald-800">
             <p className="text-xs text-emerald-700 dark:text-emerald-400">
-              {language === 'ar'
-                ? 'يتم حفظ إعدادات الوحدات تلقائياً'
-                : 'Unit settings are saved automatically'}
+              {t.unitsSavedAuto}
             </p>
           </div>
         </CardContent>
@@ -295,51 +294,49 @@ export default function SettingsPanel() {
             <div className="p-2 bg-white/20 rounded-lg backdrop-blur-sm">
               <Lock className="h-5 w-5" />
             </div>
-            <span>{language === 'ar' ? 'تغيير كلمة المرور' : 'Change Password'}</span>
+            <span>{t.changePassword}</span>
           </CardTitle>
         </CardHeader>
         <CardContent className="p-6">
           <div className="max-w-md space-y-4">
             <div className="space-y-2">
               <Label className="text-sm font-medium text-foreground/80">
-                {language === 'ar' ? 'كلمة المرور الحالية' : 'Current Password'}
+                {t.currentPassword}
               </Label>
               <Input
                 type="password"
                 value={currentPassword}
                 onChange={(e) => setCurrentPassword(e.target.value)}
-                placeholder={language === 'ar' ? 'أدخل كلمة المرور الحالية' : 'Enter current password'}
+                placeholder={t.enterCurrentPassword}
                 className="w-full"
               />
             </div>
 
             <div className="space-y-2">
               <Label className="text-sm font-medium text-foreground/80">
-                {language === 'ar' ? 'كلمة المرور الجديدة' : 'New Password'}
+                {t.newPassword}
               </Label>
               <Input
                 type="password"
                 value={newPassword}
                 onChange={(e) => setNewPassword(e.target.value)}
-                placeholder={language === 'ar' ? 'أدخل كلمة المرور الجديدة' : 'Enter new password'}
+                placeholder={t.enterNewPassword}
                 className="w-full"
               />
               <p className="text-xs text-muted-foreground">
-                {language === 'ar'
-                  ? 'الحد الأدنى 8 أحرف، الحد الأقصى 128 حرف'
-                  : 'Minimum 8 characters, maximum 128'}
+                {t.passwordMinLength}
               </p>
             </div>
 
             <div className="space-y-2">
               <Label className="text-sm font-medium text-foreground/80">
-                {language === 'ar' ? 'تأكيد كلمة المرور' : 'Confirm Password'}
+                {t.confirmPassword}
               </Label>
               <Input
                 type="password"
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
-                placeholder={language === 'ar' ? 'أعد إدخال كلمة المرور الجديدة' : 'Re-enter new password'}
+                placeholder={t.reEnterNewPassword}
                 className="w-full"
               />
             </div>
@@ -356,10 +353,10 @@ export default function SettingsPanel() {
                       <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                       <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
                     </svg>
-                    {language === 'ar' ? 'جاري التغيير...' : 'Changing...'}
+                    {t.changing}
                   </span>
                 ) : (
-                  (language === 'ar' ? 'تغيير كلمة المرور' : 'Change Password')
+                  t.changePassword
                 )}
               </Button>
             </div>
