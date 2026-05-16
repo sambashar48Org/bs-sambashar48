@@ -90,14 +90,31 @@ ALTER TABLE devices ENABLE ROW LEVEL SECURITY;
 ALTER TABLE projects ENABLE ROW LEVEL SECURITY;
 
 -- ═══════════════════════════════════════════════════════════════
--- الخطوة 6: حذف السياسات القديمة المتساهلة (إن وجدت)
+-- الخطوة 6: حذف جميع السياسات القديمة (المتساهلة والصارمة)
+-- DROP IF EXISTS = آمنة حتى لو لم تكن السياسات موجودة
 -- ═══════════════════════════════════════════════════════════════
+
+-- السياسات المتساهلة القديمة
 DROP POLICY IF EXISTS "Service role can do everything on users" ON users;
 DROP POLICY IF EXISTS "Service role can do everything on devices" ON devices;
 DROP POLICY IF EXISTS "Service role can do everything on projects" ON projects;
 DROP POLICY IF EXISTS "Anon can read public user fields" ON users;
 DROP POLICY IF EXISTS "Anon can read devices" ON devices;
 DROP POLICY IF EXISTS "Anon can read projects" ON projects;
+
+-- السياسات الصارمة (للتشغيل المتكرر بأمان)
+DROP POLICY IF EXISTS "Anon cannot read users" ON users;
+DROP POLICY IF EXISTS "Anon cannot insert users" ON users;
+DROP POLICY IF EXISTS "Anon cannot update users" ON users;
+DROP POLICY IF EXISTS "Anon cannot delete users" ON users;
+DROP POLICY IF EXISTS "Anon cannot read devices" ON devices;
+DROP POLICY IF EXISTS "Anon cannot insert devices" ON devices;
+DROP POLICY IF EXISTS "Anon cannot update devices" ON devices;
+DROP POLICY IF EXISTS "Anon cannot delete devices" ON devices;
+DROP POLICY IF EXISTS "Anon cannot read projects" ON projects;
+DROP POLICY IF EXISTS "Anon cannot insert projects" ON projects;
+DROP POLICY IF EXISTS "Anon cannot update projects" ON projects;
+DROP POLICY IF EXISTS "Anon cannot delete projects" ON projects;
 
 -- ═══════════════════════════════════════════════════════════════
 -- الخطوة 7: إنشاء سياسات RLS صارمة
@@ -128,18 +145,19 @@ CREATE POLICY "Anon cannot delete projects" ON projects FOR DELETE USING (false)
 -- ⚠️ يجب تغيير كلمة المرور عند أول تسجيل دخول
 -- لتوليد هاش جديد: node -e "console.log(require('bcryptjs').hashSync('YOUR_PASSWORD', 12))"
 -- ═══════════════════════════════════════════════════════════════
--- NOTE: password_hash will be updated after you provide the new password
--- The hash below is a placeholder that will be replaced
+-- Admin password hash (bcrypt, 12 rounds)
+-- Password was set by the administrator
 INSERT INTO users (username, password_hash, full_name, role, must_change_password, password_version)
 VALUES (
   'admin',
-  '$2b$12$PLACEHOLDER_WILL_BE_UPDATED',
+  '$2b$12$X/EHxTVXvPSKJ4o/uvR.Du1AMbFXTeN6D/Ew1.RlMWngdfUvIXiiG',
   'بشار السليمان',
   'admin',
-  true,
-  1
+  false,
+  2
 ) ON CONFLICT (username) DO UPDATE SET
-  must_change_password = true,
+  password_hash = EXCLUDED.password_hash,
+  must_change_password = false,
   password_version = users.password_version + 1;
 
 -- ═══════════════════════════════════════════════════════════════
@@ -154,7 +172,11 @@ VALUES (
   ARRAY['image/jpeg', 'image/png', 'image/gif', 'image/webp']
 ) ON CONFLICT (id) DO NOTHING;
 
--- سياسات التخزين
+-- سياسات التخزين (حذف القديمة أولاً لمنع خطأ التكرار)
+DROP POLICY IF EXISTS "Authenticated users can upload images" ON storage.objects;
+DROP POLICY IF EXISTS "Anyone can view images" ON storage.objects;
+DROP POLICY IF EXISTS "Authenticated users can delete images" ON storage.objects;
+
 CREATE POLICY "Authenticated users can upload images" ON storage.objects
   FOR INSERT WITH CHECK (bucket_id = 'evaluation-images' AND (storage.foldername(name))[1] = 'uploads');
 
@@ -173,7 +195,6 @@ CREATE POLICY "Authenticated users can delete images" ON storage.objects
 -- 3. Storage جاهز لرفع الصور
 -- 4. المستخدم المدير جاهز (يجب تحديث كلمة المرور)
 --
--- ⚠️ مهم: بعد الحصول على هاش كلمة المرور الجديدة،
--- شغّل الاستعلام التالي في SQL Editor:
--- UPDATE users SET password_hash = 'HASH_HERE' WHERE username = 'admin';
+-- ✅ كلمة مرور المدير محدثة في هذا السكريبت
+-- ✅ السياسات آمنة للتشغيل المتكرر (DROP IF EXISTS قبل CREATE)
 -- ═══════════════════════════════════════════════════════════════

@@ -153,6 +153,8 @@ export async function POST(request: NextRequest) {
                 status: 'pending_approval',
                 message: 'جهاز جديد — بانتظار موافقة المدير',
                 deviceName: deviceName || 'Unknown Device',
+                username: user.username,
+                userId: user.id,
               },
               { headers: { 'Cache-Control': 'no-store' } }
             );
@@ -164,6 +166,8 @@ export async function POST(request: NextRequest) {
               status: 'pending_approval',
               message: 'جهازك بانتظار موافقة المدير',
               deviceName: deviceCheck.device?.device_name || 'Unknown Device',
+              username: user.username,
+              userId: user.id,
             },
             { headers: { 'Cache-Control': 'no-store' } }
           );
