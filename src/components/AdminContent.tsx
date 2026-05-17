@@ -615,15 +615,16 @@ export default function AdminContent() {
               </div>
             </CardContent>
           </Card>
-          <Card className="py-4 border-amber-200">
+          <Card className={`py-4 ${pendingUsers.length + pendingDevices.length > 0 ? 'border-2 border-amber-400 shadow-md' : 'border-amber-200'}`}>
             <CardContent className="px-4">
               <div className="flex items-center gap-3">
-                <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-amber-100">
-                  <Clock className="w-5 h-5 text-amber-600" />
+                <div className={`flex items-center justify-center w-10 h-10 rounded-lg ${pendingUsers.length + pendingDevices.length > 0 ? 'bg-amber-200' : 'bg-amber-100'}`}>
+                  <Clock className={`w-5 h-5 ${pendingUsers.length + pendingDevices.length > 0 ? 'text-amber-700' : 'text-amber-600'}`} />
                 </div>
                 <div>
-                  <p className="text-2xl font-bold text-amber-700">{pendingUsers.length + pendingDevices.length}</p>
+                  <p className={`text-2xl font-bold ${pendingUsers.length + pendingDevices.length > 0 ? 'text-amber-700 animate-pulse' : 'text-amber-700'}`}>{pendingUsers.length + pendingDevices.length}</p>
                   <p className="text-xs text-gray-500">بانتظار الموافقة</p>
+                  {pendingUsers.length > 0 && <p className="text-[10px] text-amber-600">{pendingUsers.length} حساب + {pendingDevices.length} جهاز</p>}
                 </div>
               </div>
             </CardContent>
@@ -643,91 +644,103 @@ export default function AdminContent() {
           </Card>
         </div>
 
-        {/* ─── قسم طلبات الموافقة العاجلة ─── */}
-        {(pendingUsers.length > 0 || pendingDevices.length > 0) && (
-          <Card className="border-amber-300 bg-amber-50/30">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-lg font-bold text-amber-800 flex items-center gap-2">
-                <AlertCircle className="w-5 h-5 text-amber-600" />
-                طلبات بانتظار الموافقة
-                <Badge className="bg-amber-500 text-white">{pendingUsers.length + pendingDevices.length}</Badge>
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              {/* مستخدمون بانتظار الموافقة */}
-              {pendingUsers.length > 0 && (
-                <div className="space-y-2">
-                  <p className="text-sm font-semibold text-amber-700 flex items-center gap-1.5">
-                    <Users className="w-4 h-4" /> مستخدمون جدد ({pendingUsers.length})
-                  </p>
-                  {pendingUsers.map((u) => (
-                    <div key={u.id} className="flex items-center gap-3 p-3 bg-white border border-amber-200 rounded-xl">
-                      <div className="flex items-center justify-center w-9 h-9 rounded-full bg-amber-100 text-amber-700 text-sm font-bold shrink-0">
-                        {u.full_name?.charAt(0) || 'U'}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-semibold text-gray-800">{u.full_name}</p>
-                        <p className="text-xs text-gray-500">@{u.username} — {formatDateShort(u.created_at)}</p>
-                      </div>
-                      <div className="flex items-center gap-2 shrink-0">
-                        <Button
-                          size="sm"
-                          onClick={() => handleApproveUser(u.id)}
-                          disabled={userActionLoading === u.id}
-                          className="gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white h-8"
-                        >
-                          {userActionLoading === u.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <UserCheck className="w-3.5 h-3.5" />}
-                          <span className="hidden sm:inline">موافقة</span>
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => handleRejectUser(u.id)}
-                          disabled={userActionLoading === u.id}
-                          className="gap-1.5 border-red-200 text-red-600 hover:bg-red-50 h-8"
-                        >
-                          {userActionLoading === u.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <UserX className="w-3.5 h-3.5" />}
-                          <span className="hidden sm:inline">رفض</span>
-                        </Button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
+        {/* ─── قسم طلبات الموافقة العاجلة ─── دائماً ظاهر ─── */}
+        <Card className={`border-2 ${pendingUsers.length > 0 || pendingDevices.length > 0 ? 'border-amber-400 bg-amber-50/50 shadow-md' : 'border-gray-200 bg-white'} transition-all`}>
+          <CardHeader className="pb-3">
+            <CardTitle className={`text-lg font-bold flex items-center gap-2 ${pendingUsers.length > 0 || pendingDevices.length > 0 ? 'text-amber-800' : 'text-gray-600'}`}>
+              <div className={`flex items-center justify-center w-8 h-8 rounded-lg ${pendingUsers.length > 0 || pendingDevices.length > 0 ? 'bg-amber-200 text-amber-700' : 'bg-gray-100 text-gray-400'}`}>
+                <AlertCircle className="w-5 h-5" />
+              </div>
+              طلبات بانتظار الموافقة
+              {pendingUsers.length + pendingDevices.length > 0 ? (
+                <Badge className="bg-amber-500 text-white animate-pulse">{pendingUsers.length + pendingDevices.length}</Badge>
+              ) : (
+                <Badge variant="secondary" className="bg-gray-100 text-gray-500">0</Badge>
               )}
-              {/* أجهزة بانتظار الموافقة */}
-              {pendingDevices.length > 0 && (
-                <div className="space-y-2">
-                  <p className="text-sm font-semibold text-amber-700 flex items-center gap-1.5">
-                    <Smartphone className="w-4 h-4" /> أجهزة جديدة ({pendingDevices.length})
-                  </p>
-                  {pendingDevices.map((device) => (
-                    <div key={device.id} className="flex items-center gap-3 p-3 bg-white border border-amber-200 rounded-xl">
-                      <div className="flex items-center justify-center w-9 h-9 rounded-lg bg-amber-100 text-amber-700 shrink-0">
-                        {getDeviceIcon(device.device_name)}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-semibold text-gray-800">{device.device_name || 'جهاز غير معروف'}</p>
-                        <p className="text-xs text-gray-500">
-                          {device.users?.full_name || device.users?.username || 'مستخدم'} — {formatDateShort(device.created_at)}
-                        </p>
-                      </div>
-                      <div className="flex items-center gap-2 shrink-0">
-                        <Button size="sm" onClick={() => handleApproveDevice(device.id, device.user_id)} disabled={actionLoading === device.id} className="gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white h-8">
-                          {actionLoading === device.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle2 className="w-3.5 h-3.5" />}
-                          <span className="hidden sm:inline">موافقة</span>
-                        </Button>
-                        <Button size="sm" variant="outline" onClick={() => handleRejectDevice(device.id, device.user_id)} disabled={actionLoading === device.id} className="gap-1.5 border-red-200 text-red-600 hover:bg-red-50 h-8">
-                          {actionLoading === device.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <XCircle className="w-3.5 h-3.5" />}
-                          <span className="hidden sm:inline">رفض</span>
-                        </Button>
-                      </div>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {pendingUsers.length === 0 && pendingDevices.length === 0 && (
+              <div className="text-center py-6 text-gray-400">
+                <CheckCircle2 className="w-10 h-10 mx-auto mb-2 opacity-50" />
+                <p className="text-sm font-medium">لا توجد طلبات معلقة حالياً</p>
+                <p className="text-xs mt-1">جميع الطلبات تمت معالجتها</p>
+              </div>
+            )}
+            {/* مستخدمون بانتظار الموافقة على الحساب */}
+            {pendingUsers.length > 0 && (
+              <div className="space-y-2">
+                <p className="text-sm font-semibold text-amber-700 flex items-center gap-1.5">
+                  <Users className="w-4 h-4" /> مستخدمون جدد بانتظار الموافقة على الحساب ({pendingUsers.length})
+                </p>
+                <p className="text-xs text-amber-600 mb-2">⚠ يجب الموافقة على الحساب أولاً قبل أن يتمكن المستخدم من تسجيل جهازه</p>
+                {pendingUsers.map((u) => (
+                  <div key={u.id} className="flex items-center gap-3 p-3 bg-white border border-amber-200 rounded-xl shadow-sm">
+                    <div className="flex items-center justify-center w-10 h-10 rounded-full bg-amber-100 text-amber-700 text-sm font-bold shrink-0">
+                      {u.full_name?.charAt(0) || 'U'}
                     </div>
-                  ))}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        )}
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold text-gray-800">{u.full_name}</p>
+                      <p className="text-xs text-gray-500">@{u.username} — {formatDateShort(u.created_at)}</p>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <Button
+                        size="sm"
+                        onClick={() => handleApproveUser(u.id)}
+                        disabled={userActionLoading === u.id}
+                        className="gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white h-9 px-3"
+                      >
+                        {userActionLoading === u.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <UserCheck className="w-3.5 h-3.5" />}
+                        <span>موافقة</span>
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => handleRejectUser(u.id)}
+                        disabled={userActionLoading === u.id}
+                        className="gap-1.5 border-red-300 text-red-600 hover:bg-red-50 h-9 px-3"
+                      >
+                        {userActionLoading === u.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <UserX className="w-3.5 h-3.5" />}
+                        <span>رفض</span>
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+            {/* أجهزة بانتظار الموافقة */}
+            {pendingDevices.length > 0 && (
+              <div className="space-y-2">
+                <p className="text-sm font-semibold text-amber-700 flex items-center gap-1.5">
+                  <Smartphone className="w-4 h-4" /> أجهزة جديدة بانتظار الموافقة ({pendingDevices.length})
+                </p>
+                {pendingDevices.map((device) => (
+                  <div key={device.id} className="flex items-center gap-3 p-3 bg-white border border-amber-200 rounded-xl shadow-sm">
+                    <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-amber-100 text-amber-700 shrink-0">
+                      {getDeviceIcon(device.device_name)}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold text-gray-800">{device.device_name || 'جهاز غير معروف'}</p>
+                      <p className="text-xs text-gray-500">
+                        {device.users?.full_name || device.users?.username || 'مستخدم'} — {formatDateShort(device.created_at)}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <Button size="sm" onClick={() => handleApproveDevice(device.id, device.user_id)} disabled={actionLoading === device.id} className="gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white h-9 px-3">
+                        {actionLoading === device.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle2 className="w-3.5 h-3.5" />}
+                        <span>موافقة</span>
+                      </Button>
+                      <Button size="sm" variant="outline" onClick={() => handleRejectDevice(device.id, device.user_id)} disabled={actionLoading === device.id} className="gap-1.5 border-red-300 text-red-600 hover:bg-red-50 h-9 px-3">
+                        {actionLoading === device.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <XCircle className="w-3.5 h-3.5" />}
+                        <span>رفض</span>
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
 
         {/* ─── تبويبات التنقل ─── */}
         <div className="flex gap-2 border-b pb-0">
@@ -986,41 +999,96 @@ export default function AdminContent() {
         )}
 
         {/* ═══════════════════════════════════════════════════════════════
-            تبويب إدارة الأجهزة
+            تبويب إدارة الأجهزة — مع أزرار واضحة للتفعيل والتعطيل
             ═══════════════════════════════════════════════════════════════ */}
         {activeTab === 'devices' && (
           <div className="space-y-6">
+            {/* ─── المستخدمون المعلقون (يحتاجون موافقة الحساب أولاً) ─── */}
+            {pendingUsers.length > 0 && (
+              <Card className="border-2 border-amber-300 bg-amber-50/30">
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-lg font-bold text-amber-800 flex items-center gap-2">
+                    <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-amber-200">
+                      <AlertCircle className="w-5 h-5 text-amber-700" />
+                    </div>
+                    حسابات معلّقة — تحتاج موافقة
+                    <Badge className="bg-amber-500 text-white">{pendingUsers.length}</Badge>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-2">
+                  <p className="text-xs text-amber-600 mb-3">
+                    ⚠ هؤلاء المستخدمون سجّلوا حساباتهم بأنفسهم ولا يستطيعون الدخول حتى توافق على حساباتهم.
+                    بعد الموافقة، سيتمكنون من الدخول وتسجيل أجهزتهم.
+                  </p>
+                  {pendingUsers.map((u) => (
+                    <div key={u.id} className="flex items-center gap-3 p-3 bg-white border border-amber-200 rounded-xl shadow-sm">
+                      <div className="flex items-center justify-center w-10 h-10 rounded-full bg-amber-100 text-amber-700 text-sm font-bold shrink-0">
+                        {u.full_name?.charAt(0) || 'U'}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-semibold text-gray-800">{u.full_name}</p>
+                        <p className="text-xs text-gray-500">@{u.username} — {formatDateShort(u.created_at)}</p>
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <Button
+                          size="sm"
+                          onClick={() => handleApproveUser(u.id)}
+                          disabled={userActionLoading === u.id}
+                          className="gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white h-9 px-3"
+                        >
+                          {userActionLoading === u.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <UserCheck className="w-3.5 h-3.5" />}
+                          <span>موافقة</span>
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleRejectUser(u.id)}
+                          disabled={userActionLoading === u.id}
+                          className="gap-1.5 border-red-300 text-red-600 hover:bg-red-50 h-9 px-3"
+                        >
+                          {userActionLoading === u.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <UserX className="w-3.5 h-3.5" />}
+                          <span>رفض</span>
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </CardContent>
+              </Card>
+            )}
+
             {/* ─── أجهزة كل مستخدم ─── */}
             <Card>
               <CardHeader className="pb-3">
                 <CardTitle className="text-lg font-bold text-gray-800 flex items-center gap-2">
                   <Monitor className="w-5 h-5 text-emerald-600" />
-                  أجهزة المستخدمين
+                  أجهزة المستخدمين المعتمدين
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                {users.filter((u) => u.role !== 'admin').length === 0 ? (
+                {users.filter((u) => u.role !== 'admin' && u.is_approved !== false).length === 0 ? (
                   <div className="text-center py-8 text-gray-400">
                     <Users className="w-10 h-10 mx-auto mb-2 opacity-50" />
-                    <p className="text-sm font-medium">لا يوجد مستخدمون عاديون</p>
+                    <p className="text-sm font-medium">لا يوجد مستخدمون معتمدون</p>
+                    <p className="text-xs mt-1">وافق على الحسابات المعلقة أعلاه أولاً</p>
                   </div>
                 ) : (
                   <div className="space-y-2">
                     {users
-                      .filter((u) => u.role !== 'admin')
+                      .filter((u) => u.role !== 'admin' && u.is_approved !== false)
                       .map((u) => {
                         const isExpanded = expandedUser === u.id;
                         const devices = userDevices[u.id] || [];
                         const isLoading = isLoadingDevices === u.id;
                         const activeDevCount = devices.filter((d) => d.is_approved && d.is_active).length;
                         const pendingDevCount = devices.filter((d) => !d.is_approved).length;
+                        const totalDevCount = devices.length;
 
                         return (
-                          <div key={u.id} className="border rounded-xl overflow-hidden">
+                          <div key={u.id} className={`border rounded-xl overflow-hidden ${u.is_active === false ? 'opacity-60' : ''}`}>
                             {/* صف المستخدم */}
-                            <button
+                            <div
+                              className="w-full flex items-center gap-3 p-4 hover:bg-gray-50 transition-colors text-right cursor-pointer"
                               onClick={() => toggleExpandUser(u.id)}
-                              className="w-full flex items-center gap-3 p-4 hover:bg-gray-50 transition-colors text-right"
                             >
                               <div className={`shrink-0 transition-transform ${isExpanded ? 'rotate-180' : ''}`}>
                                 <ChevronDown className="w-4 h-4 text-gray-400" />
@@ -1031,8 +1099,7 @@ export default function AdminContent() {
                               <div className="flex-1 min-w-0 text-right">
                                 <p className="text-sm font-semibold text-gray-800">
                                   {u.full_name}
-                                  {u.is_approved === false && <Badge className="mr-2 bg-amber-100 text-amber-700 text-[10px]">معلّق</Badge>}
-                                  {u.is_approved !== false && u.is_active === false && <Badge className="mr-2 bg-red-100 text-red-700 text-[10px]">معطّل</Badge>}
+                                  {u.is_active === false && <Badge className="mr-2 bg-red-100 text-red-700 text-[10px]">معطّل</Badge>}
                                 </p>
                                 <p className="text-xs text-gray-500">@{u.username}</p>
                               </div>
@@ -1046,6 +1113,11 @@ export default function AdminContent() {
                                     <Clock className="w-3 h-3" /> {pendingDevCount} معلّق
                                   </Badge>
                                 )}
+                                {totalDevCount === 0 && (
+                                  <Badge className="bg-gray-100 text-gray-500 text-[10px] gap-1">
+                                    <Smartphone className="w-3 h-3" /> لا أجهزة
+                                  </Badge>
+                                )}
                                 <div className="flex items-center gap-1.5">
                                   {u.cloud_sync_enabled ? (
                                     <Cloud className="w-3.5 h-3.5 text-blue-500" />
@@ -1054,7 +1126,7 @@ export default function AdminContent() {
                                   )}
                                 </div>
                               </div>
-                            </button>
+                            </div>
 
                             {/* قائمة الأجهزة */}
                             {isExpanded && (
@@ -1064,8 +1136,10 @@ export default function AdminContent() {
                                     <Loader2 className="w-5 h-5 animate-spin text-gray-400" />
                                   </div>
                                 ) : devices.length === 0 ? (
-                                  <div className="text-center py-6 text-gray-400">
-                                    <p className="text-xs">لا توجد أجهزة مسجلة لهذا المستخدم</p>
+                                  <div className="text-center py-6">
+                                    <Smartphone className="w-8 h-8 mx-auto mb-2 text-gray-300" />
+                                    <p className="text-xs text-gray-500 font-medium">لا توجد أجهزة مسجلة لهذا المستخدم بعد</p>
+                                    <p className="text-[10px] text-gray-400 mt-1">ستظهر الأجهزة هنا بعد أن يسجل المستخدم الدخول من جهاز جديد</p>
                                   </div>
                                 ) : (
                                   <div className="divide-y">
@@ -1093,6 +1167,7 @@ export default function AdminContent() {
                                             </span>
                                           </div>
                                         </div>
+                                        {/* حالة الجهاز */}
                                         <div className="shrink-0">
                                           {device.is_approved && device.is_active ? (
                                             <Badge className="bg-emerald-100 text-emerald-700 text-[10px] gap-1">
@@ -1108,6 +1183,7 @@ export default function AdminContent() {
                                             </Badge>
                                           )}
                                         </div>
+                                        {/* أزرار الإجراءات — واضحة وبارزة */}
                                         <div className="flex items-center gap-1 shrink-0">
                                           {device.is_approved ? (
                                             <Button
@@ -1116,22 +1192,43 @@ export default function AdminContent() {
                                               onClick={() => handleToggleDevice(device.id, u.id, !device.is_active)}
                                               disabled={actionLoading === device.id}
                                               title={device.is_active ? 'تعطيل الجهاز' : 'تفعيل الجهاز'}
-                                              className={`h-7 w-7 ${device.is_active ? 'text-amber-500 hover:bg-amber-50' : 'text-emerald-500 hover:bg-emerald-50'}`}
+                                              className={`h-8 w-8 ${device.is_active ? 'text-amber-500 hover:bg-amber-50' : 'text-emerald-500 hover:bg-emerald-50'}`}
                                             >
-                                              {actionLoading === device.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : device.is_active ? <PowerOff className="w-3.5 h-3.5" /> : <Power className="w-3.5 h-3.5" />}
+                                              {actionLoading === device.id ? <Loader2 className="w-4 h-4 animate-spin" /> : device.is_active ? <PowerOff className="w-4 h-4" /> : <Power className="w-4 h-4" />}
                                             </Button>
                                           ) : (
                                             <>
-                                              <Button variant="ghost" size="icon" onClick={() => handleApproveDevice(device.id, u.id)} disabled={actionLoading === device.id} title="موافقة" className="h-7 w-7 text-emerald-500 hover:bg-emerald-50">
-                                                {actionLoading === device.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle2 className="w-3.5 h-3.5" />}
+                                              <Button
+                                                variant="ghost"
+                                                size="icon"
+                                                onClick={() => handleApproveDevice(device.id, u.id)}
+                                                disabled={actionLoading === device.id}
+                                                title="الموافقة على الجهاز"
+                                                className="h-8 w-8 text-emerald-600 hover:bg-emerald-50"
+                                              >
+                                                {actionLoading === device.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
                                               </Button>
-                                              <Button variant="ghost" size="icon" onClick={() => handleRejectDevice(device.id, u.id)} disabled={actionLoading === device.id} title="رفض" className="h-7 w-7 text-red-500 hover:bg-red-50">
-                                                <XCircle className="w-3.5 h-3.5" />
+                                              <Button
+                                                variant="ghost"
+                                                size="icon"
+                                                onClick={() => handleRejectDevice(device.id, u.id)}
+                                                disabled={actionLoading === device.id}
+                                                title="رفض الجهاز"
+                                                className="h-8 w-8 text-red-500 hover:bg-red-50"
+                                              >
+                                                {actionLoading === device.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <XCircle className="w-4 h-4" />}
                                               </Button>
                                             </>
                                           )}
-                                          <Button variant="ghost" size="icon" onClick={() => handleDeleteDevice(device.id, u.id)} disabled={actionLoading === device.id} title="حذف الجهاز" className="h-7 w-7 text-red-400 hover:text-red-600 hover:bg-red-50">
-                                            <Trash2 className="w-3.5 h-3.5" />
+                                          <Button
+                                            variant="ghost"
+                                            size="icon"
+                                            onClick={() => handleDeleteDevice(device.id, u.id)}
+                                            disabled={actionLoading === device.id}
+                                            title="حذف الجهاز"
+                                            className="h-8 w-8 text-red-400 hover:text-red-600 hover:bg-red-50"
+                                          >
+                                            <Trash2 className="w-4 h-4" />
                                           </Button>
                                         </div>
                                       </div>
