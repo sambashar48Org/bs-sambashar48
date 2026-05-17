@@ -121,8 +121,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Create the user with 'user' role
-    const user = await createUser(username.trim(), password, fullName.trim(), 'user');
+    // Create the user with 'user' role — self-registration requires admin approval
+    const user = await createUser(username.trim(), password, fullName.trim(), 'user', true);
 
     return NextResponse.json(
       {
@@ -133,7 +133,7 @@ export async function POST(request: NextRequest) {
           role: user.role,
           createdAt: user.created_at,
         },
-        message: 'تم إنشاء الحساب بنجاح',
+        message: 'تم إنشاء الحساب بنجاح — حسابك بانتظار موافقة المدير',
       },
       { status: 201, headers: { 'Cache-Control': 'no-store' } }
     );

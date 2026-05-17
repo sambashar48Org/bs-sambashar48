@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAdmin } from '@/lib/auth';
-import { deleteUser, updateUserRole, updateUserCloudSync, getAllUsers } from '@/lib/db-operations';
+import { deleteUser, updateUserRole, updateUserCloudSync, getAllUsers, approveUser, rejectUser, toggleUserActive } from '@/lib/db-operations';
 
 export async function PATCH(
   request: NextRequest,
@@ -16,6 +16,41 @@ export async function PATCH(
       return NextResponse.json(
         { error: 'لا يمكنك تغيير دور حسابك الخاص' },
         { status: 400, headers: { 'Cache-Control': 'no-store' } }
+      );
+    }
+
+    // ═══════ User Approval/Rejection ═══════
+    if (body.isApproved !== undefined) {
+      if (body.isApproved === true) {
+        await approveUser(id, session.userId);
+      } else if (body.isApproved === false) {
+        await rejectUser(id);
+      }
+      return NextResponse.json(
+        { success: true, message: body.isApproved ? 'تمت الموافقة على المستخدم' : 'تم رفض المستخدم' },
+        { headers: { 'Cache-Control': 'no-store' } }
+      );
+    }
+
+    // ═══════ User Activation/Deactivation ═══════
+    if (body.isActive !== undefined) {
+      if (typeof body.isActive !== 'boolean') {
+        return NextResponse.json(
+          { error: 'isActive يجب أن يكون true أو false' },
+          { status: 400, headers: { 'Cache-Control': 'no-store' } }
+        );
+      }
+      // Prevent admin from deactivating themselves
+      if (session.userId === id && !body.isActive) {
+        return NextResponse.json(
+          { error: 'لا يمكنك تعطيل حسابك الخاص' },
+          { status: 400, headers: { 'Cache-Control': 'no-store' } }
+        );
+      }
+      await toggleUserActive(id, body.isActive);
+      return NextResponse.json(
+        { success: true, message: body.isActive ? 'تم تفعيل المستخدم' : 'تم تعطيل المستخدم' },
+        { headers: { 'Cache-Control': 'no-store' } }
       );
     }
 

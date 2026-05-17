@@ -14,6 +14,10 @@ export interface UserData {
   max_devices: number;
   must_change_password: boolean;
   password_version: number;
+  is_approved: boolean;
+  is_active: boolean;
+  approved_by: string | null;
+  approved_at: string | null;
   created_at: string;
 }
 
@@ -26,13 +30,16 @@ export interface AuthUserData {
   cloud_sync_enabled: boolean;
   must_change_password: boolean;
   password_version: number;
+  is_approved: boolean;
+  is_active: boolean;
   created_at: string;
 }
 
 // ======== Column Availability Cache ========
-// Tracks whether must_change_password and password_version columns exist
+// Tracks whether must_change_password, password_version, is_approved, is_active columns exist
 // to avoid repeated failed queries on databases without migration applied
 let _hasPasswordColumns: boolean | null = null;
+let _hasApprovalColumns: boolean | null = null;
 
 function isMissingColumnError(error: { code?: string; message?: string }): boolean {
   // PostgreSQL error code 42703 = undefined column
@@ -63,6 +70,25 @@ async function hasPasswordColumns(): Promise<boolean> {
  */
 export function resetColumnCache() {
   _hasPasswordColumns = null;
+  _hasApprovalColumns = null;
+}
+
+/**
+ * Check if is_approved and is_active columns exist in users table.
+ * Result is cached after first check.
+ */
+async function hasApprovalColumns(): Promise<boolean> {
+  if (_hasApprovalColumns !== null) return _hasApprovalColumns;
+  try {
+    const { error } = await supabaseAdmin
+      .from('users')
+      .select('is_approved, is_active')
+      .limit(1);
+    _hasApprovalColumns = !error || !isMissingColumnError(error);
+  } catch {
+    _hasApprovalColumns = false;
+  }
+  return _hasApprovalColumns;
 }
 
 /**
@@ -83,10 +109,12 @@ export async function createUser(
   username: string,
   password: string,
   fullName: string,
-  role: 'admin' | 'user' = 'user'
+  role: 'admin' | 'user' = 'user',
+  isSelfRegistration: boolean = false
 ) {
   const passwordHash = await bcrypt.hash(password, 12);
   const hasCols = await hasPasswordColumns();
+  const hasApproval = await hasApprovalColumns();
 
   const insertData: Record<string, unknown> = {
     username,
@@ -95,7 +123,13 @@ export async function createUser(
     role,
   };
   if (hasCols) {
-    insertData.must_change_password = true;  // Admin-created users must change password on first login
+    insertData.must_change_password = !isSelfRegistration;  // Admin-created users must change password; self-registered already know their password
+  }
+  if (hasApproval) {
+    // المستخدمون المسجلون ذاتياً يحتاجون موافقة المدير
+    // المستخدمون الذين أنشأهم المدير معتمدون تلقائياً
+    insertData.is_approved = !isSelfRegistration;
+    insertData.is_active = true;
   }
 
   const { data, error } = await supabaseAdmin
@@ -118,10 +152,16 @@ export async function authenticateUser(username: string, password: string): Prom
   // SECURITY: Use supabaseAdmin to bypass RLS — auth must work even with strict RLS
   // SECURITY: Only select needed fields — never expose password_hash to callers
   const hasCols = await hasPasswordColumns();
+  const hasApproval = await hasApprovalColumns();
 
-  const selectFields = hasCols
-    ? 'id, username, password_hash, full_name, role, cloud_sync_enabled, must_change_password, password_version, created_at'
-    : 'id, username, password_hash, full_name, role, cloud_sync_enabled, created_at';
+  let selectFields: string;
+  if (hasCols && hasApproval) {
+    selectFields = 'id, username, password_hash, full_name, role, cloud_sync_enabled, must_change_password, password_version, is_approved, is_active, created_at';
+  } else if (hasCols) {
+    selectFields = 'id, username, password_hash, full_name, role, cloud_sync_enabled, must_change_password, password_version, created_at';
+  } else {
+    selectFields = 'id, username, password_hash, full_name, role, cloud_sync_enabled, created_at';
+  }
 
   const { data: user, error } = await supabaseAdmin
     .from('users')
@@ -148,16 +188,26 @@ export async function authenticateUser(username: string, password: string): Prom
     safeUser.must_change_password = false;
     safeUser.password_version = 1;
   }
+  if (!hasApproval) {
+    safeUser.is_approved = true;
+    safeUser.is_active = true;
+  }
   return safeUser as unknown as Omit<AuthUserData, 'password_hash'>;
 }
 
 export async function getUserById(id: string): Promise<UserData> {
   // Use supabaseAdmin to bypass RLS — server-side operation
   const hasCols = await hasPasswordColumns();
+  const hasApproval = await hasApprovalColumns();
 
-  const selectFields = hasCols
-    ? 'id, username, full_name, role, cloud_sync_enabled, must_change_password, password_version, created_at'
-    : 'id, username, full_name, role, cloud_sync_enabled, created_at';
+  let selectFields: string;
+  if (hasCols && hasApproval) {
+    selectFields = 'id, username, full_name, role, cloud_sync_enabled, must_change_password, password_version, is_approved, is_active, approved_by, approved_at, created_at';
+  } else if (hasCols) {
+    selectFields = 'id, username, full_name, role, cloud_sync_enabled, must_change_password, password_version, created_at';
+  } else {
+    selectFields = 'id, username, full_name, role, cloud_sync_enabled, created_at';
+  }
 
   const { data, error } = await supabaseAdmin
     .from('users')
@@ -172,16 +222,28 @@ export async function getUserById(id: string): Promise<UserData> {
     record.must_change_password = false;
     record.password_version = 1;
   }
+  if (!hasApproval) {
+    record.is_approved = true;
+    record.is_active = true;
+    record.approved_by = null;
+    record.approved_at = null;
+  }
   return record as unknown as UserData;
 }
 
 export async function getAllUsers(): Promise<UserData[]> {
   // Use supabaseAdmin to bypass RLS — admin operation
   const hasCols = await hasPasswordColumns();
+  const hasApproval = await hasApprovalColumns();
 
-  const selectFields = hasCols
-    ? 'id, username, full_name, role, cloud_sync_enabled, max_devices, must_change_password, password_version, created_at'
-    : 'id, username, full_name, role, cloud_sync_enabled, max_devices, created_at';
+  let selectFields: string;
+  if (hasCols && hasApproval) {
+    selectFields = 'id, username, full_name, role, cloud_sync_enabled, max_devices, must_change_password, password_version, is_approved, is_active, approved_by, approved_at, created_at';
+  } else if (hasCols) {
+    selectFields = 'id, username, full_name, role, cloud_sync_enabled, max_devices, must_change_password, password_version, created_at';
+  } else {
+    selectFields = 'id, username, full_name, role, cloud_sync_enabled, max_devices, created_at';
+  }
 
   const { data, error } = await supabaseAdmin
     .from('users')
@@ -191,10 +253,16 @@ export async function getAllUsers(): Promise<UserData[]> {
   if (error) throw new Error('فشل جلب المستخدمين');
   // Provide safe defaults for missing columns
   const results = toRecordArray(data || []);
-  if (!hasCols) {
-    for (const user of results) {
+  for (const user of results) {
+    if (!hasCols) {
       user.must_change_password = false;
       user.password_version = 1;
+    }
+    if (!hasApproval) {
+      user.is_approved = true;
+      user.is_active = true;
+      user.approved_by = null;
+      user.approved_at = null;
     }
   }
   return results as unknown as UserData[];
@@ -268,6 +336,58 @@ export async function updateUserCloudSync(userId: string, enabled: boolean) {
     .eq('id', userId);
 
   if (error) throw new Error('فشل تحديث صلاحية المزامنة السحابية');
+}
+
+/** الموافقة على حساب مستخدم من قِبل المدير */
+export async function approveUser(userId: string, adminUserId: string) {
+  const hasApproval = await hasApprovalColumns();
+  if (!hasApproval) throw new Error('أعمدة الموافقة غير متوفرة بعد — يرجى تشغيل السكريبت');
+
+  const { error } = await supabaseAdmin
+    .from('users')
+    .update({
+      is_approved: true,
+      is_active: true,
+      approved_by: adminUserId,
+      approved_at: new Date().toISOString(),
+    })
+    .eq('id', userId);
+
+  if (error) throw new Error('فشل الموافقة على المستخدم');
+}
+
+/** رفض حساب مستخدم (حذف الحساب) */
+export async function rejectUser(userId: string) {
+  // رفض المستخدم = حذف حسابه بالكامل
+  await deleteUser(userId);
+}
+
+/** تفعيل/تعطيل حساب مستخدم */
+export async function toggleUserActive(userId: string, isActive: boolean) {
+  const hasApproval = await hasApprovalColumns();
+  if (!hasApproval) throw new Error('أعمدة التفعيل غير متوفرة بعد — يرجى تشغيل السكريبت');
+
+  const { error } = await supabaseAdmin
+    .from('users')
+    .update({ is_active: isActive })
+    .eq('id', userId);
+
+  if (error) throw new Error('فشل تحديث حالة المستخدم');
+}
+
+/** جلب المستخدمين بانتظار الموافقة */
+export async function getPendingUsers(): Promise<UserData[]> {
+  const hasApproval = await hasApprovalColumns();
+  if (!hasApproval) return []; // إذا لم تكن الأعمدة متوفرة، لا يوجد مستخدمون معلقون
+
+  const { data, error } = await supabaseAdmin
+    .from('users')
+    .select('id, username, full_name, role, cloud_sync_enabled, max_devices, must_change_password, password_version, is_approved, is_active, approved_by, approved_at, created_at')
+    .eq('is_approved', false)
+    .order('created_at', { ascending: false });
+
+  if (error) throw new Error('فشل جلب المستخدمين المعلقين');
+  return (data || []) as unknown as UserData[];
 }
 
 // ======== Project Operations ========

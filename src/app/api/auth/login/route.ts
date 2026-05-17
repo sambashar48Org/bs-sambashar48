@@ -89,6 +89,35 @@ export async function POST(request: NextRequest) {
       const user = await authenticateUser(username, password);
       clearFailedAttempts(username);
 
+      // ═══════ فحص حالة الحساب (موافقة + تفعيل) ═══════
+      // SECURITY: Check user-level approval BEFORE device check
+      const userApproved = (user as Record<string, unknown>).is_approved !== false; // default true if missing
+      const userActive = (user as Record<string, unknown>).is_active !== false; // default true if missing
+
+      if (!userApproved) {
+        return NextResponse.json(
+          {
+            status: 'pending_approval',
+            message: 'حسابك بانتظار موافقة المدير',
+            username: user.username,
+            userId: user.id,
+          },
+          { status: 403, headers: { 'Cache-Control': 'no-store' } }
+        );
+      }
+
+      if (!userActive) {
+        return NextResponse.json(
+          {
+            status: 'account_disabled',
+            message: 'تم تعطيل حسابك من قِبل المدير — تواصل مع المشرف',
+            username: user.username,
+            userId: user.id,
+          },
+          { status: 403, headers: { 'Cache-Control': 'no-store' } }
+        );
+      }
+
       // ═══════ Hybrid Device Fingerprint Check ═══════
       // SECURITY: ALL users (including admin) must pass device fingerprint check
       // Admin devices are auto-approved, but still tracked for audit purposes
