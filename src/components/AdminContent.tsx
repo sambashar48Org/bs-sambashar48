@@ -107,6 +107,10 @@ export default function AdminContent() {
   // ─── تبويب نشط ───
   const [activeTab, setActiveTab] = useState<'users' | 'devices'>('users');
 
+  // ─── معرّف المستخدم الحالي (المدير المسجل دخوله) ───
+  // يُستخدم لمنع المدير من تعديل/حذف حسابه الخاص فقط، وليس منع إدارة المشرفين الآخرين
+  const currentAdminId = user?.id || '';
+
   // ═══════════════════════════════════════════════════════════════
   // جلب البيانات
   // ═══════════════════════════════════════════════════════════════
@@ -170,11 +174,12 @@ export default function AdminContent() {
     }
   }, []);
 
-  // تحميل أجهزة جميع المستخدمين العاديين تلقائياً بعد جلب قائمة المستخدمين
+  // تحميل أجهزة جميع المستخدمين تلقائياً بعد جلب قائمة المستخدمين (بما فيهم المشرفون الآخرون)
   const fetchAllUserDevices = useCallback(async (userList: User[]) => {
-    const nonAdminUsers = userList.filter((u) => u.role !== 'admin');
+    // جلب أجهزة جميع المستخدمين ما عدا المدير الحالي (لا حاجة لعرض أجهزته هو)
+    const targetUsers = userList.filter((u) => u.id !== currentAdminId);
     // تحميل أجهزة كل المستخدمين بالتوازي
-    const devicePromises = nonAdminUsers.map(async (u) => {
+    const devicePromises = targetUsers.map(async (u) => {
       try {
         const res = await fetch(`/api/admin/users/${u.id}/devices`, {
           credentials: 'include',
@@ -196,7 +201,7 @@ export default function AdminContent() {
       }
     }
     setUserDevices((prev) => ({ ...prev, ...devicesMap }));
-  }, []);
+  }, [currentAdminId]);
 
   const refreshAll = useCallback(async () => {
     const usersData = await fetchUsers();
@@ -541,8 +546,8 @@ export default function AdminContent() {
     (sum, devs) => sum + devs.filter((d) => d.is_approved && d.is_active).length, 0
   );
   // is_approved === false فقط (وليس NULL) — المستخدمون القدامى قد يكون is_approved=NULL
-  const pendingUsers = users.filter((u) => u.is_approved === false && u.role !== 'admin');
-  const activeUsers = users.filter((u) => u.is_approved !== false && u.is_active !== false && u.role !== 'admin');
+  const pendingUsers = users.filter((u) => u.is_approved === false && u.id !== currentAdminId);
+  const activeUsers = users.filter((u) => u.is_approved !== false && u.is_active !== false && u.id !== currentAdminId);
 
   // ═══════════════════════════════════════════════════════════════
   // الرسم
@@ -880,7 +885,7 @@ export default function AdminContent() {
                               <Switch
                                 checked={u.cloud_sync_enabled}
                                 onCheckedChange={(checked) => handleToggleCloudSync(u.id, checked)}
-                                disabled={u.role === 'admin'}
+                                disabled={u.id === currentAdminId}
                               />
                             </TableCell>
 
@@ -896,7 +901,7 @@ export default function AdminContent() {
                             <TableCell className="px-4 py-3">
                               <div className="flex items-center justify-center gap-1 flex-wrap">
                                 {/* موافقة / رفض للمستخدمين المعلقين — is_approved===false فقط وليس NULL */}
-                                {u.is_approved === false && u.role !== 'admin' && (
+                                {u.is_approved === false && u.id !== currentAdminId && (
                                   <>
                                     <Button
                                       variant="ghost"
@@ -921,8 +926,8 @@ export default function AdminContent() {
                                   </>
                                 )}
 
-                                {/* تفعيل/تعطيل للمستخدمين المعتمدين — is_approved !== false يشمل true و NULL */}
-                                {u.is_approved !== false && u.role !== 'admin' && (
+                                {/* تفعيل/تعطيل للمستخدمين المعتمدين — is_approved !== false يشمل true و NULL؛ يمنع المدير من تعطيل نفسه فقط */}
+                                {u.is_approved !== false && u.id !== currentAdminId && (
                                   <Button
                                     variant="ghost"
                                     size="icon"
@@ -935,8 +940,8 @@ export default function AdminContent() {
                                   </Button>
                                 )}
 
-                                {/* تغيير الدور — فقط للمعتمدين */}
-                                {u.role !== 'admin' && u.is_approved !== false && (
+                                {/* تغيير الدور — متاح لجميع المستخدمين ما عدا المدير الحالي (لا يغيّر دور نفسه) */}
+                                {u.id !== currentAdminId && u.is_approved !== false && (
                                   <Button
                                     variant="ghost"
                                     size="icon"
@@ -948,8 +953,8 @@ export default function AdminContent() {
                                   </Button>
                                 )}
 
-                                {/* إعادة تعيين كلمة المرور */}
-                                {u.role !== 'admin' && (
+                                {/* إعادة تعيين كلمة المرور — متاح للجميع ما عدا المدير الحالي */}
+                                {u.id !== currentAdminId && (
                                   <Button
                                     variant="ghost"
                                     size="icon"
@@ -961,8 +966,8 @@ export default function AdminContent() {
                                   </Button>
                                 )}
 
-                                {/* عدد الأجهزة */}
-                                {u.role !== 'admin' && (
+                                {/* عدد الأجهزة — متاح للجميع ما عدا المدير الحالي */}
+                                {u.id !== currentAdminId && (
                                   <Button
                                     variant="ghost"
                                     size="icon"
@@ -974,13 +979,13 @@ export default function AdminContent() {
                                   </Button>
                                 )}
 
-                                {/* حذف */}
+                                {/* حذف — يمنع المدير من حذف نفسه فقط، يمكنه حذف المشرفين الآخرين */}
                                 <Button
                                   variant="ghost"
                                   size="icon"
                                   onClick={() => setDeleteUserTarget(u)}
-                                  disabled={u.role === 'admin'}
-                                  title={u.role === 'admin' ? 'لا يمكن حذف مشرف' : 'حذف المستخدم'}
+                                  disabled={u.id === currentAdminId}
+                                  title={u.id === currentAdminId ? 'لا يمكنك حذف حسابك' : 'حذف المستخدم'}
                                   className="h-8 w-8 text-red-500 hover:text-red-700 hover:bg-red-50 disabled:opacity-30"
                                 >
                                   <Trash2 className="w-4 h-4" />
@@ -1065,7 +1070,7 @@ export default function AdminContent() {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                {users.filter((u) => u.role !== 'admin' && u.is_approved !== false).length === 0 ? (
+                {users.filter((u) => u.id !== currentAdminId && u.is_approved !== false).length === 0 ? (
                   <div className="text-center py-8 text-gray-400">
                     <Users className="w-10 h-10 mx-auto mb-2 opacity-50" />
                     <p className="text-sm font-medium">لا يوجد مستخدمون معتمدون</p>
@@ -1074,7 +1079,7 @@ export default function AdminContent() {
                 ) : (
                   <div className="space-y-2">
                     {users
-                      .filter((u) => u.role !== 'admin' && u.is_approved !== false)
+                      .filter((u) => u.id !== currentAdminId && u.is_approved !== false)
                       .map((u) => {
                         const isExpanded = expandedUser === u.id;
                         const devices = userDevices[u.id] || [];
