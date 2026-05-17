@@ -499,8 +499,9 @@ export default function AdminContent() {
   const totalApprovedDevices = Object.values(userDevices).reduce(
     (sum, devs) => sum + devs.filter((d) => d.is_approved && d.is_active).length, 0
   );
-  const pendingUsers = users.filter((u) => !u.is_approved && u.role !== 'admin');
-  const activeUsers = users.filter((u) => u.is_approved && u.is_active && u.role !== 'admin');
+  // is_approved === false فقط (وليس NULL) — المستخدمون القدامى قد يكون is_approved=NULL
+  const pendingUsers = users.filter((u) => u.is_approved === false && u.role !== 'admin');
+  const activeUsers = users.filter((u) => u.is_approved !== false && u.is_active !== false && u.role !== 'admin');
 
   // ═══════════════════════════════════════════════════════════════
   // الرسم
@@ -793,13 +794,13 @@ export default function AdminContent() {
                               </div>
                             </TableCell>
 
-                            {/* الحالة */}
+                            {/* الحالة — معالجة NULL: المستخدمون القدامى قد يكون is_approved=NULL */}
                             <TableCell className="px-4 py-3 text-center">
-                              {!u.is_approved ? (
+                              {u.is_approved === false ? (
                                 <Badge className="bg-amber-100 text-amber-700 gap-1">
                                   <Clock className="w-3 h-3" /> معلّق
                                 </Badge>
-                              ) : !u.is_active ? (
+                              ) : u.is_active === false ? (
                                 <Badge className="bg-red-100 text-red-700 gap-1">
                                   <Ban className="w-3 h-3" /> معطّل
                                 </Badge>
@@ -840,8 +841,8 @@ export default function AdminContent() {
                             {/* الإجراءات */}
                             <TableCell className="px-4 py-3">
                               <div className="flex items-center justify-center gap-1 flex-wrap">
-                                {/* موافقة / رفض للمستخدمين المعلقين */}
-                                {!u.is_approved && u.role !== 'admin' && (
+                                {/* موافقة / رفض للمستخدمين المعلقين — is_approved===false فقط وليس NULL */}
+                                {u.is_approved === false && u.role !== 'admin' && (
                                   <>
                                     <Button
                                       variant="ghost"
@@ -866,8 +867,8 @@ export default function AdminContent() {
                                   </>
                                 )}
 
-                                {/* تفعيل/تعطيل للمستخدمين المعتمدين */}
-                                {u.is_approved && u.role !== 'admin' && (
+                                {/* تفعيل/تعطيل للمستخدمين المعتمدين — is_approved !== false يشمل true و NULL */}
+                                {u.is_approved !== false && u.role !== 'admin' && (
                                   <Button
                                     variant="ghost"
                                     size="icon"
@@ -880,8 +881,8 @@ export default function AdminContent() {
                                   </Button>
                                 )}
 
-                                {/* تغيير الدور */}
-                                {u.role !== 'admin' && u.is_approved && (
+                                {/* تغيير الدور — فقط للمعتمدين */}
+                                {u.role !== 'admin' && u.is_approved !== false && (
                                   <Button
                                     variant="ghost"
                                     size="icon"
@@ -989,8 +990,8 @@ export default function AdminContent() {
                               <div className="flex-1 min-w-0 text-right">
                                 <p className="text-sm font-semibold text-gray-800">
                                   {u.full_name}
-                                  {!u.is_approved && <Badge className="mr-2 bg-amber-100 text-amber-700 text-[10px]">معلّق</Badge>}
-                                  {u.is_approved && !u.is_active && <Badge className="mr-2 bg-red-100 text-red-700 text-[10px]">معطّل</Badge>}
+                                  {u.is_approved === false && <Badge className="mr-2 bg-amber-100 text-amber-700 text-[10px]">معلّق</Badge>}
+                                  {u.is_approved !== false && u.is_active === false && <Badge className="mr-2 bg-red-100 text-red-700 text-[10px]">معطّل</Badge>}
                                 </p>
                                 <p className="text-xs text-gray-500">@{u.username}</p>
                               </div>

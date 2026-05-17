@@ -98,6 +98,7 @@ export async function POST(request: NextRequest) {
         return NextResponse.json(
           {
             status: 'pending_approval',
+            reason: 'account_pending',  // الحساب بانتظار موافقة المدير
             message: 'حسابك بانتظار موافقة المدير',
             username: user.username,
             userId: user.id,
@@ -110,6 +111,7 @@ export async function POST(request: NextRequest) {
         return NextResponse.json(
           {
             status: 'account_disabled',
+            reason: 'account_disabled',  // الحساب معطّل من المدير
             message: 'تم تعطيل حسابك من قِبل المدير — تواصل مع المشرف',
             username: user.username,
             userId: user.id,
@@ -180,6 +182,7 @@ export async function POST(request: NextRequest) {
             return NextResponse.json(
               {
                 status: 'pending_approval',
+                reason: 'device_pending',  // الجهاز بانتظار موافقة المدير
                 message: 'جهاز جديد — بانتظار موافقة المدير',
                 deviceName: deviceName || 'Unknown Device',
                 username: user.username,
@@ -193,6 +196,7 @@ export async function POST(request: NextRequest) {
           return NextResponse.json(
             {
               status: 'pending_approval',
+              reason: 'device_pending',  // الجهاز مسجل لكن بانتظار الموافقة
               message: 'جهازك بانتظار موافقة المدير',
               deviceName: deviceCheck.device?.device_name || 'Unknown Device',
               username: user.username,

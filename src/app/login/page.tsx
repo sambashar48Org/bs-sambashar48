@@ -27,7 +27,7 @@ export default function LoginPage() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [pendingApproval, setPendingApproval] = useState<{ deviceName: string; username: string; userId: string } | null>(null);
+  const [pendingApproval, setPendingApproval] = useState<{ deviceName: string; username: string; userId: string; reason?: string } | null>(null);
 
   // ─────────────────────────────────────────────────────
   // SMART CACHE CLEANUP — version-aware
@@ -104,13 +104,21 @@ export default function LoginPage() {
 
         const data = await res.json();
 
-        // حالة بانتظار موافقة المدير
+        // حالة بانتظار موافقة المدير — سواء حساب أو جهاز
         if (data.status === 'pending_approval') {
           setPendingApproval({
             deviceName: data.deviceName || deviceId.description,
             username: data.username || username.trim(),
             userId: data.userId,
+            reason: data.reason || 'device_pending',  // الافتراضي: موافقة جهاز
           });
+          setIsLoading(false);
+          return;
+        }
+
+        // حالة تعطيل الحساب من المدير
+        if (data.status === 'account_disabled') {
+          setError(data.message || 'تم تعطيل حسابك من قِبل المدير — تواصل مع المشرف');
           setIsLoading(false);
           return;
         }
@@ -193,6 +201,7 @@ export default function LoginPage() {
       <PendingApproval
         deviceName={pendingApproval.deviceName}
         username={pendingApproval.username}
+        reason={pendingApproval.reason}
         onLogout={handleLogout}
         onRefresh={handleRefreshApproval}
       />

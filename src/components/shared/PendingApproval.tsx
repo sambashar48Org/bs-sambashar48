@@ -8,11 +8,12 @@ import { ShieldCheck, Clock, LogOut, RefreshCw, Smartphone, Monitor } from 'luci
 interface PendingApprovalProps {
   deviceName?: string;
   username?: string;
+  reason?: string; // 'account_pending' | 'device_pending'
   onLogout: () => void;
   onRefresh: () => void;
 }
 
-export default function PendingApproval({ deviceName, username, onLogout, onRefresh }: PendingApprovalProps) {
+export default function PendingApproval({ deviceName, username, reason, onLogout, onRefresh }: PendingApprovalProps) {
   const [isChecking, setIsChecking] = useState(false);
   const [checkCount, setCheckCount] = useState(0);
 
@@ -34,6 +35,7 @@ export default function PendingApproval({ deviceName, username, onLogout, onRefr
     }
   };
 
+  const isAccountPending = reason === 'account_pending';
   const isMobile = /Android|iPhone|iPad/i.test(navigator.userAgent);
 
   return (
@@ -45,8 +47,14 @@ export default function PendingApproval({ deviceName, username, onLogout, onRefr
               <Clock className="h-10 w-10" />
             </div>
           </div>
-          <CardTitle className="text-2xl font-bold">بانتظار موافقة المدير</CardTitle>
-          <p className="text-amber-100 text-sm mt-1">تم تسجيل جهازك وهو بانتظار الاعتماد</p>
+          <CardTitle className="text-2xl font-bold">
+            {isAccountPending ? 'حسابك بانتظار الموافقة' : 'بانتظار موافقة المدير'}
+          </CardTitle>
+          <p className="text-amber-100 text-sm mt-1">
+            {isAccountPending
+              ? 'تم إنشاء حسابك وهو بانتظار اعتماد المدير'
+              : 'تم تسجيل جهازك وهو بانتظار الاعتماد'}
+          </p>
         </CardHeader>
 
         <CardContent className="p-6 space-y-5">
@@ -56,10 +64,12 @@ export default function PendingApproval({ deviceName, username, onLogout, onRefr
               <ShieldCheck className="h-5 w-5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
               <div className="space-y-1">
                 <p className="text-sm font-semibold text-amber-800 dark:text-amber-200">
-                  طلب اعتماد جهاز جديد
+                  {isAccountPending ? 'طلب اعتماد حساب جديد' : 'طلب اعتماد جهاز جديد'}
                 </p>
                 <p className="text-xs text-amber-600 dark:text-amber-400">
-                  تم إرسال طلب اعتماد هذا الجهاز إلى المدير. لن تتمكن من استخدام التطبيق حتى تتم الموافقة.
+                  {isAccountPending
+                    ? 'تم إرسال طلب تسجيل حسابك إلى المدير. لن تتمكن من استخدام التطبيق حتى تتم الموافقة على حسابك.'
+                    : 'تم إرسال طلب اعتماد هذا الجهاز إلى المدير. لن تتمكن من استخدام التطبيق حتى تتم الموافقة.'}
                 </p>
               </div>
             </div>
@@ -90,10 +100,21 @@ export default function PendingApproval({ deviceName, username, onLogout, onRefr
           <div className="bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-xl p-4">
             <p className="text-xs text-blue-700 dark:text-blue-300 leading-relaxed">
               <strong>ماذا يحدث الآن؟</strong><br />
-              1. تم إرسال طلب اعتماد الجهاز إلى المدير (بشار السليمان)<br />
-              2. سيقوم المدير بمراجعة طلبك والموافقة عليه<br />
-              3. بعد الموافقة، يمكنك تسجيل الدخول من هذا الجهاز<br />
-              4. الحد الأقصى: جهازان لكل مستخدم
+              {isAccountPending ? (
+                <>
+                  1. تم إرسال طلب تسجيل حسابك إلى المدير (بشار السليمان)<br />
+                  2. سيقوم المدير بمراجعة طلبك والموافقة عليه<br />
+                  3. بعد الموافقة على حسابك، يمكنك تسجيل الدخول<br />
+                  4. سيحتاج كل جهاز جديد أيضاً موافقة المدير
+                </>
+              ) : (
+                <>
+                  1. تم إرسال طلب اعتماد الجهاز إلى المدير (بشار السليمان)<br />
+                  2. سيقوم المدير بمراجعة طلبك والموافقة عليه<br />
+                  3. بعد الموافقة، يمكنك تسجيل الدخول من هذا الجهاز<br />
+                  4. الحد الأقصى: جهازان لكل مستخدم
+                </>
+              )}
             </p>
           </div>
 

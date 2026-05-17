@@ -21,6 +21,7 @@ export default function RegisterPage() {
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
+  const [successMessage, setSuccessMessage] = useState('');
 
   // ─────────────────────────────────────────────────────
   // AGGRESSIVE CACHE & SERVICE WORKER CLEANUP
@@ -110,6 +111,7 @@ export default function RegisterPage() {
         return;
       }
 
+      setSuccessMessage(data.message || 'تم إنشاء الحساب بنجاح');
       setIsSuccess(true);
     } catch {
       setError('تعذر الاتصال بالخادم. يرجى التحقق من اتصال الإنترنت.');
@@ -176,9 +178,14 @@ export default function RegisterPage() {
                   <CheckCircle className="w-8 h-8 text-emerald-600" />
                 </div>
                 <h3 className="text-lg font-bold text-gray-800">تم إنشاء الحساب بنجاح!</h3>
-                <p className="text-gray-500 text-sm">
-                  يمكنك الآن تسجيل الدخول باستخدام بيانات الاعتماد الخاصة بك
-                </p>
+                <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-right">
+                  <p className="text-amber-800 text-sm font-semibold mb-1">
+                    حسابك بانتظار موافقة المدير
+                  </p>
+                  <p className="text-amber-600 text-xs leading-relaxed">
+                    تم إرسال طلب تسجيلك إلى المدير (بشار السليمان). بعد الموافقة على حسابك، يمكنك تسجيل الدخول واستخدام التطبيق.
+                  </p>
+                </div>
                 <Button
                   onClick={() => router.push('/login')}
                   className="w-full h-11 bg-emerald-600 hover:bg-emerald-700 text-white shadow-md hover:shadow-lg transition-all duration-200"

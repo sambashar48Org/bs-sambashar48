@@ -51,3 +51,25 @@ Stage Summary:
 - جميع واجهات API تعمل كما هو متوقع
 - الأمان يعمل: رفض كلمات مرور خاطئة، إبطال جلسة عند الخروج
 - المشروع جاهز للنشر الخارجي بعد موافقة المستخدم
+
+---
+Task ID: 13
+Agent: Main Agent
+Task: إصلاح أخطاء لوحة تحكم المدير - نظام الموافقة على المستخدمين والأجهزة
+
+Work Log:
+- تحليل شامل لـ 12 ملف برمجي لتحديد جذور المشاكل
+- اكتشاف أن الكود الأساسي (backend + frontend) تم تنفيذه مسبقاً بشكل سليم
+- لكن 5 أخطاء حرجة متبقية تم إصلاحها:
+  1. معالجة NULL في UI: تغيير `!u.is_approved` إلى `u.is_approved === false` لمنع ظهور admin كـ "معلّق"
+  2. إصلاح رسالة نجاح التسجيل: إضافة تنبيه أن الحساب بانتظار موافقة المدير
+  3. إضافة معالجة `account_disabled` في صفحة الدخول
+  4. تحسين PendingApproval: تمييز بين موافقة حساب وموافقة جهاز عبر `reason` prop
+  5. تحديث Login API: إضافة `reason` field (account_pending/device_pending/account_disabled)
+- بناء المشروع ناجح بدون أخطاء
+- يحتاج تنفيذ SQL لتحديث المستخدمين الحاليين (is_approved=NULL → true)
+
+Stage Summary:
+- 5 إصلاحات حرجة تم تنفيذها واختبارها (بناء ناجح)
+- SQL update مطلوب: UPDATE users SET is_approved=COALESCE(is_approved,true), is_active=COALESCE(is_active,true) WHERE is_approved IS NULL OR is_active IS NULL
+- المشروع جاهز للنشر بعد تنفيذ SQL والموافقة
