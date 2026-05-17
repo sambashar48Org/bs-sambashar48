@@ -121,42 +121,53 @@ export const WSD = {
  */
 export const SLAB_ALPHA = {
   // بلاطة مصمتة باتجاه واحد — One-way solid slab
+  // الكود العربي السوري 2024: h = L/α, hMin = max(L/α, 8)
   oneWaySolid: {
-    simple: 20,
-    oneEndContinuous: 24,
-    bothEndsContinuous: 28,
+    simple: 25,
+    oneEndContinuous: 29,
+    bothEndsContinuous: 33,
     cantilever: 10,
   },
 
   // بلاطة مصمتة باتجاهين — Two-way solid slab
+  // الكود العربي السوري 2024: h = P_equiv/140, hMin = max(P_equiv/140, 8)
+  // للمحيط المكافئ: P_equiv = Σ(β_i × L_i), β=0.8 مستمر, β=1.0 حر
   twoWaySolid: {
-    simple: 30,
-    continuous: 33,
+    simple: 25,         // α بسيط (يُستخدم كقيمة احتياطية)
+    oneEndContinuous: 29,
+    bothEndsContinuous: 33,
+    continuous: 33,     // للتوافق مع الكود القديم
   },
 
   // بلاطة هوردي باتجاه واحد — One-way ribbed slab
+  // الكود العربي السوري 2024: h = L/α
   oneWayRibbed: {
-    simple: 20,
-    oneEndContinuous: 24,
-    bothEndsContinuous: 28,
-    cantilever: 10,
+    simple: 16,
+    oneEndContinuous: 18.5,
+    bothEndsContinuous: 21,
+    cantilever: 8,
   },
 
   // بلاطة هوردي باتجاهين — Two-way ribbed slab
+  // الكود العربي السوري 2024: h = P_equiv/120, hfMin = max(5, lClear/12)
   twoWayRibbed: {
-    simple: 25,
-    continuous: 28,
+    simple: 16,         // α بسيط (يُستخدم كقيمة احتياطية)
+    oneEndContinuous: 18.5,
+    bothEndsContinuous: 21,
+    continuous: 28,     // للتوافق مع الكود القديم
   },
 
   // بلاطة فطرية — Flat slab
+  // الكود العربي السوري 2024: h = Lmax/α, hMin = max(Lmax/α, 15)
   flatSlab: {
-    withDropPanels: 30,   // h = Lmax/30
-    withoutDropPanels: 33, // h = Lmax/33
+    withDropPanels: 36,    // h = Lmax/36
+    withoutDropPanels: 32, // h = Lmax/32
   },
 } as const;
 
 export const BEAM_ALPHA = {
-  // جائز ساقط — Dropped beam
+  // جائز ساقط ومخفي — Dropped & Hidden beam
+  // الكود العربي السوري 2024: h = L/α
   simple: 16,
   oneEndContinuous: 18.5,
   bothEndsContinuous: 21,

@@ -7,6 +7,99 @@
 import { WSD, SLAB_ALPHA, BEAM_ALPHA } from './constants';
 
 // ===================================================================
+// 0. طبقة الإعدادات الهندسية المركزية — Global Unit Filter
+// الكود العربي السوري 2024 — طريقة التشغيل WSD
+// ===================================================================
+
+/**
+ * getAllowableStresses — الدالة المركزية لإعدادات الإجهادات المسموحة
+ * Syrian Arab Code 2024 — WSD Method
+ *
+ * تُنظّم جميع الثوابت التجريبية بناءً على نظام الوحدات المختار
+ * قبل تشغيل أي فحص إنشائي. يجب استدعاؤها في بداية كل دالة فحص.
+ *
+ * @param fc - المقاومة الاسطوانية المميزة f'c
+ * @param fy - إجهاد خضوع حديد التسليح
+ * @param unitSystem - نظام الوحدات: 'kg_cm' أو 'N_mm' أو 'MPa'
+ */
+export interface AllowableStressesResult {
+  /** الإجهاد المسموح للخرسانة بسبب الانحناء */
+  fc_allowable: number;
+  /** مقاومة القص الخرسانية */
+  vc: number;
+  /** إجهاد القص الأقصى المسموح */
+  vmax: number;
+  /** إجهاد الثقب المسموح */
+  vp_allowable: number;
+  /** معامل المرونة للخرسانة */
+  Ec: number;
+  /** الإجهاد المسموح لحديد التسليح (انحناء) */
+  fs_allowable: number;
+  /** الإجهاد المسموح لحديد الأطواق */
+  Fst: number;
+  /** معامل المرونة للحديد */
+  Es: number;
+  /** نسبة النمطية (معامل التحويل) */
+  n: number;
+  /** نظام الوحدات المستخدم */
+  unitSystem: string;
+  /** وحدات الإجهاد للعرض */
+  stressUnit: string;
+}
+
+export function getAllowableStresses(
+  fc: number,
+  fy: number,
+  unitSystem: string = 'kg_cm'
+): AllowableStressesResult {
+  const isSI = unitSystem === 'N_mm' || unitSystem === 'MPa';
+
+  // ─── ثوابت الخرسانة ───
+  const fc_allowable = 0.40 * fc;  // 0.4 × f'c — ثابت لكلا النظامين
+
+  let vc: number;
+  let vmax: number;
+  let vp_allowable: number;
+  let Ec: number;
+
+  if (isSI) {
+    // النظام الدولي: N/mm² أو MPa
+    vc = 0.16 * Math.sqrt(fc);              // مقاومة القص (N/mm²)
+    vmax = 0.80 * Math.sqrt(fc);            // القص الأقصى (N/mm²)
+    vp_allowable = 0.16 * Math.sqrt(fc);    // ثقب البلاطات (N/mm²)
+    Ec = 4700 * Math.sqrt(fc);              // معامل المرونة (N/mm²)
+  } else {
+    // النظام المتري التقني: كغ/سم²
+    vc = 0.50 * Math.sqrt(fc);              // مقاومة القص (كغ/سم²)
+    vmax = 2.50 * Math.sqrt(fc);            // القص الأقصى (كغ/سم²)
+    vp_allowable = 0.50 * Math.sqrt(fc);    // ثقب البلاطات (كغ/سم²)
+    Ec = 15000 * Math.sqrt(fc);             // معامل المرونة (كغ/سم²)
+  }
+
+  // ─── ثوابت الحديد ───
+  const fs_allowable = 0.50 * fy;           // 0.5 × fy — ثابت لكلا النظامين
+  const Fst = 0.50 * fy;                    // إجهاد الأطواق = 0.5 × fy
+  const Es = isSI ? 200000 : 2000000;       // معامل المرونة (N/mm² أو كغ/سم²)
+
+  // ─── نسبة النمطية ───
+  const n = Math.round(Es / Ec);
+
+  return {
+    fc_allowable: Math.round(fc_allowable * 100) / 100,
+    vc: Math.round(vc * 100) / 100,
+    vmax: Math.round(vmax * 100) / 100,
+    vp_allowable: Math.round(vp_allowable * 100) / 100,
+    Ec: Math.round(Ec * 100) / 100,
+    fs_allowable: Math.round(fs_allowable * 100) / 100,
+    Fst: Math.round(Fst * 100) / 100,
+    Es,
+    n,
+    unitSystem,
+    stressUnit: isSI ? 'N/mm²' : 'kg/cm²',
+  };
+}
+
+// ===================================================================
 // أنواع النتائج
 // ===================================================================
 export interface CalcResult {
@@ -117,6 +210,12 @@ export interface ColumnWallResult extends CalcResult {
 
 /**
  * فحص شرط السماكة للبلاطات
+ * الكود العربي السوري 2024 — WSD
+ *
+ * حدود السماكة الدنيا المطلقة:
+ * - بلاطة مصمتة: hMin ≥ 8 سم
+ * - بلاطة هوردي: hfMin = max(5, lClear/12) سم
+ * - بلاطة فطرية: hMin ≥ 15 سم
  */
 export function checkSlabThickness(params: {
   slabType: 'oneWaySolid' | 'twoWaySolid' | 'oneWayRibbed' | 'twoWayRibbed' | 'flatSlab';
@@ -125,8 +224,13 @@ export function checkSlabThickness(params: {
   hActual: number;     // السماكة المنفذة (سم)
   spanLong?: number;   // المجاز الطويل للبلاطة باتجاهين
   spanShort?: number;  // المجاز القصير للبلاطة باتجاهين
+  sideLengths?: number[];   // أطوال الأضلاع الأربعة [L1,L2,L3,L4]
+  sideConditions?: string[]; // حالة كل ضلع: 'free' أو 'continuous'
+  lClearRib?: number;  // المسافة الصافية بين الأضلاع (هوردي)
+  hfActual?: number;   // سماكة البلاطة العلوية (هوردي)
 }): SlabThicknessResult {
-  const { slabType, supportCondition, span, hActual, spanLong, spanShort } = params;
+  const { slabType, supportCondition, span, hActual, spanLong, spanShort,
+          sideLengths, sideConditions, lClearRib, hfActual } = params;
   let hMin: number;
   let formula: string;
 
@@ -140,45 +244,72 @@ export function checkSlabThickness(params: {
   const condKey = conditionMap[supportCondition] || 'simple';
 
   if (slabType === 'oneWaySolid') {
-    const alpha = SLAB_ALPHA.oneWaySolid[condKey as keyof typeof SLAB_ALPHA.oneWaySolid] || 20;
+    // ─── بلاطة مصمتة باتجاه واحد ───
+    // α: بسيط=25, مستمر طرف=29, مستمر طرفين=33, كابولي=10
+    const alpha = SLAB_ALPHA.oneWaySolid[condKey as keyof typeof SLAB_ALPHA.oneWaySolid] || 25;
     hMin = span / alpha;
-    formula = `h = L/${alpha} = ${span}/${alpha} = ${hMin.toFixed(1)} سم`;
+    // حد أدنى مطلق: 8 سم
+    if (hMin < 8) hMin = 8;
+    formula = `h = L/${alpha} = ${span}/${alpha} = ${(span/alpha).toFixed(1)} سم (min 8)`;
+
   } else if (slabType === 'twoWaySolid') {
-    const lLong = spanLong || span;
-    const lShort = spanShort || span;
-    if (supportCondition === 'بسيط' || supportCondition === 'simple') {
-      hMin = lLong / SLAB_ALPHA.twoWaySolid.simple;
-      formula = `h = L_long/${SLAB_ALPHA.twoWaySolid.simple} = ${lLong}/${SLAB_ALPHA.twoWaySolid.simple} = ${hMin?.toFixed(1) ?? '—'} سم`;
+    // ─── بلاطة مصمتة باتجاهين ───
+    // المحيط المكافئ: P_equiv = Σ(β_i × L_i)
+    // β = 0.8 للضلع المستمر، β = 1.0 للضلع الحر
+    // h = P_equiv / 140
+    if (sideLengths && sideLengths.length === 4 && sideConditions) {
+      const beta = sideConditions.map(c => c === 'free' ? 1.0 : 0.80);
+      const P_equiv = sideLengths.reduce((sum, len, idx) => sum + beta[idx] * len, 0);
+      hMin = P_equiv / 140;
+      formula = `h = P_equiv/140 = ${P_equiv.toFixed(1)}/140 = ${hMin.toFixed(1)} سم`;
     } else {
-      // المحيط المكافئ = 2×(Lx + Ly) — الكود العربي السوري
+      // طريقة مبسطة: 2×(Lx + Ly) / 140
+      const lLong = spanLong || span;
+      const lShort = spanShort || span;
       const equivPerimeter = 2 * (lLong + lShort);
       hMin = equivPerimeter / 140;
       formula = `h = 2(${lLong}+${lShort})/140 = ${equivPerimeter}/140 = ${hMin.toFixed(1)} سم`;
     }
+    // حد أدنى مطلق: 8 سم
+    if (hMin < 8) hMin = 8;
+
   } else if (slabType === 'oneWayRibbed') {
-    const alpha = SLAB_ALPHA.oneWayRibbed[condKey as keyof typeof SLAB_ALPHA.oneWayRibbed] || 20;
+    // ─── بلاطة هوردي باتجاه واحد ───
+    // α: بسيط=16, مستمر طرف=18.5, مستمر طرفين=21, كابولي=8
+    const alpha = SLAB_ALPHA.oneWayRibbed[condKey as keyof typeof SLAB_ALPHA.oneWayRibbed] || 16;
     hMin = span / alpha;
     formula = `h = L/${alpha} = ${span}/${alpha} = ${hMin.toFixed(1)} سم`;
+
   } else if (slabType === 'twoWayRibbed') {
-    const lLong = spanLong || span;
-    const lShort = spanShort || span;
-    if (supportCondition === 'بسيط' || supportCondition === 'simple') {
-      hMin = lLong / SLAB_ALPHA.twoWayRibbed.simple;
-      formula = `h = L_long/${SLAB_ALPHA.twoWayRibbed.simple} = ${lLong}/${SLAB_ALPHA.twoWayRibbed.simple} = ${hMin?.toFixed(1) ?? '—'} سم`;
+    // ─── بلاطة هوردي باتجاهين ───
+    // المحيط المكافئ: P_equiv / 120 (بدلاً من 140 للبلاطات المصمتة)
+    if (sideLengths && sideLengths.length === 4 && sideConditions) {
+      const beta = sideConditions.map(c => c === 'free' ? 1.0 : 0.80);
+      const P_equiv = sideLengths.reduce((sum, len, idx) => sum + beta[idx] * len, 0);
+      hMin = P_equiv / 120;
+      formula = `h = P_equiv/120 = ${P_equiv.toFixed(1)}/120 = ${hMin.toFixed(1)} سم`;
     } else {
-      // المحيط المكافئ = 2×(Lx + Ly) — الكود العربي السوري
+      const lLong = spanLong || span;
+      const lShort = spanShort || span;
       const equivPerimeter = 2 * (lLong + lShort);
-      hMin = equivPerimeter / 140;
-      formula = `h = 2(${lLong}+${lShort})/140 = ${equivPerimeter}/140 = ${hMin.toFixed(1)} سم`;
+      hMin = equivPerimeter / 120;
+      formula = `h = 2(${lLong}+${lShort})/120 = ${equivPerimeter}/120 = ${hMin.toFixed(1)} سم`;
     }
+
   } else if (slabType === 'flatSlab') {
+    // ─── بلاطة فطرية ───
+    // مع تيجان: α = 36, بدون تيجان: α = 32
+    // حد أدنى مطلق: 15 سم
     if (supportCondition === 'مع تيجان' || supportCondition === 'withDropPanels') {
       hMin = span / SLAB_ALPHA.flatSlab.withDropPanels;
-      formula = `h = Lmax/${SLAB_ALPHA.flatSlab.withDropPanels}`;
+      formula = `h = Lmax/${SLAB_ALPHA.flatSlab.withDropPanels} = ${span}/${SLAB_ALPHA.flatSlab.withDropPanels} = ${hMin.toFixed(1)} سم`;
     } else {
       hMin = span / SLAB_ALPHA.flatSlab.withoutDropPanels;
-      formula = `h = Lmax/${SLAB_ALPHA.flatSlab.withoutDropPanels}`;
+      formula = `h = Lmax/${SLAB_ALPHA.flatSlab.withoutDropPanels} = ${span}/${SLAB_ALPHA.flatSlab.withoutDropPanels} = ${hMin.toFixed(1)} سم`;
     }
+    // حد أدنى مطلق: 15 سم
+    if (hMin < 15) hMin = 15;
+
   } else {
     hMin = span / 20;
     formula = `h = L/20`;

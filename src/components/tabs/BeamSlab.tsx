@@ -900,7 +900,7 @@ export default function BeamSlab({ data, onSave }: BeamSlabProps) {
             <div className="p-2 bg-white/20 rounded-lg backdrop-blur-sm">
               <Layers className="h-5 w-5" />
             </div>
-            <span>${t.beamSlabGeneralParams}</span>
+            <span>{t.beamSlabGeneralParams}</span>
           </CardTitle>
         </CardHeader>
         <CardContent className="p-6">
@@ -908,8 +908,8 @@ export default function BeamSlab({ data, onSave }: BeamSlabProps) {
             {/* f'c */}
             <div className="space-y-2">
               <Label className="text-sm font-medium text-foreground/80">
-                ${t.fcLabelShort}{' '}
-                <span className="text-muted-foreground">(${t.kgCm2})</span>
+                {t.fcLabelShort}{' '}
+                <span className="text-muted-foreground">({t.kgCm2})</span>
               </Label>
               <Input
                 type="number"
@@ -921,7 +921,7 @@ export default function BeamSlab({ data, onSave }: BeamSlabProps) {
               />
               {fcFromReport > 0 && (
                 <p className="text-[10px] text-emerald-600 dark:text-emerald-400">
-                  ${t.autoFilledFromHammer} ({fcFromReport})
+                  {t.autoFilledFromHammer} ({fcFromReport})
                 </p>
               )}
             </div>
@@ -929,8 +929,8 @@ export default function BeamSlab({ data, onSave }: BeamSlabProps) {
             {/* fy */}
             <div className="space-y-2">
               <Label className="text-sm font-medium text-foreground/80">
-                ${t.fyLabel}{' '}
-                <span className="text-muted-foreground">(${t.kgCm2})</span>
+                {t.fyLabel}{' '}
+                <span className="text-muted-foreground">({t.kgCm2})</span>
               </Label>
               <Input
                 type="number"
@@ -953,19 +953,19 @@ export default function BeamSlab({ data, onSave }: BeamSlabProps) {
               <div className="p-2 bg-white/20 rounded-lg backdrop-blur-sm">
                 <Layers className="h-5 w-5" />
               </div>
-              <span>${t.selectElementType}</span>
+              <span>{t.selectElementType}</span>
             </CardTitle>
             <div className="flex items-center gap-2">
               {activeElementType === 'slabs' && (
                 <>
                   {slabSafeCount > 0 && (
                     <span className="text-xs bg-emerald-400/30 px-2.5 py-1 rounded-full text-white font-medium">
-                      ${t.safeCount} {slabSafeCount}
+                      {t.safeCount} {slabSafeCount}
                     </span>
                   )}
                   {slabUnsafeCount > 0 && (
                     <span className="text-xs bg-red-400/30 px-2.5 py-1 rounded-full text-white font-medium">
-                      ${t.unsafeCount} {slabUnsafeCount}
+                      {t.unsafeCount} {slabUnsafeCount}
                     </span>
                   )}
                 </>
@@ -974,12 +974,12 @@ export default function BeamSlab({ data, onSave }: BeamSlabProps) {
                 <>
                   {beamSafeCount > 0 && (
                     <span className="text-xs bg-emerald-400/30 px-2.5 py-1 rounded-full text-white font-medium">
-                      ${t.safeCount} {beamSafeCount}
+                      {t.safeCount} {beamSafeCount}
                     </span>
                   )}
                   {beamUnsafeCount > 0 && (
                     <span className="text-xs bg-red-400/30 px-2.5 py-1 rounded-full text-white font-medium">
-                      ${t.unsafeCount} {beamUnsafeCount}
+                      {t.unsafeCount} {beamUnsafeCount}
                     </span>
                   )}
                 </>
@@ -1000,7 +1000,7 @@ export default function BeamSlab({ data, onSave }: BeamSlabProps) {
               onClick={() => setActiveElementType('slabs')}
             >
               <Layers className="h-4 w-4 me-2" />
-              ${t.slabsLabel}
+              {t.slabsLabel}
             </Button>
             <Button
               variant={activeElementType === 'beams' ? 'default' : 'outline'}
@@ -1012,7 +1012,7 @@ export default function BeamSlab({ data, onSave }: BeamSlabProps) {
               onClick={() => setActiveElementType('beams')}
             >
               <Ruler className="h-4 w-4 me-2" />
-              ${t.beamsLabel}
+              {t.beamsLabel}
             </Button>
           </div>
 
@@ -1021,7 +1021,7 @@ export default function BeamSlab({ data, onSave }: BeamSlabProps) {
             <div className="space-y-4">
               {/* Slab Sub-type Selector */}
               <div className="space-y-2">
-                <Label className="text-sm font-medium text-foreground/80">${t.slabTypeLabel}</Label>
+                <Label className="text-sm font-medium text-foreground/80">{t.slabTypeLabel}</Label>
                 <Select
                   value={currentSlabType}
                   onValueChange={(val) => {
@@ -1076,7 +1076,7 @@ export default function BeamSlab({ data, onSave }: BeamSlabProps) {
                     {/* Entry Header */}
                     <div className="flex items-center justify-between mb-3">
                       <span className="text-xs font-semibold text-muted-foreground bg-muted px-2.5 py-1 rounded-md">
-                        ${t.slabNumber} #{index + 1}
+                        {t.slabNumber} #{index + 1}
                       </span>
                       <Button
                         variant="ghost"
@@ -1093,7 +1093,7 @@ export default function BeamSlab({ data, onSave }: BeamSlabProps) {
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                       {/* Floor */}
                       <div className="space-y-1">
-                        <Label className="text-xs text-muted-foreground">${t.floorLabelShort}</Label>
+                        <Label className="text-xs text-muted-foreground">{t.floorLabelShort}</Label>
                         <Input
                           value={slab.floor}
                           onChange={(e) => updateSlab(slab.id, 'floor', e.target.value)}
@@ -1136,7 +1136,7 @@ export default function BeamSlab({ data, onSave }: BeamSlabProps) {
                       {isTwoWay ? (
                         <>
                           <div className="space-y-1">
-                            <Label className="text-xs text-muted-foreground">${t.longSpan}</Label>
+                            <Label className="text-xs text-muted-foreground">{t.longSpan}</Label>
                             <Input
                               type="number"
                               value={slab.spanLong}
@@ -1148,7 +1148,7 @@ export default function BeamSlab({ data, onSave }: BeamSlabProps) {
                             />
                           </div>
                           <div className="space-y-1">
-                            <Label className="text-xs text-muted-foreground">${t.shortSpan}</Label>
+                            <Label className="text-xs text-muted-foreground">{t.shortSpan}</Label>
                             <Input
                               type="number"
                               value={slab.spanShort}
@@ -1162,7 +1162,7 @@ export default function BeamSlab({ data, onSave }: BeamSlabProps) {
                         </>
                       ) : (
                         <div className="space-y-1">
-                          <Label className="text-xs text-muted-foreground">${t.span}</Label>
+                          <Label className="text-xs text-muted-foreground">{t.span}</Label>
                           <Input
                             type="number"
                             value={slab.span}
@@ -1179,7 +1179,7 @@ export default function BeamSlab({ data, onSave }: BeamSlabProps) {
                       {isRibbed ? (
                         <>
                           <div className="space-y-1">
-                            <Label className="text-xs text-muted-foreground">${t.beamCover}</Label>
+                            <Label className="text-xs text-muted-foreground">{t.beamCover}</Label>
                             <Input
                               type="number"
                               value={slab.coverThickness}
@@ -1191,7 +1191,7 @@ export default function BeamSlab({ data, onSave }: BeamSlabProps) {
                             />
                           </div>
                           <div className="space-y-1">
-                            <Label className="text-xs text-muted-foreground">${t.ribWidth}</Label>
+                            <Label className="text-xs text-muted-foreground">{t.ribWidth}</Label>
                             <Input
                               type="number"
                               value={slab.ribHeight}
@@ -1205,7 +1205,7 @@ export default function BeamSlab({ data, onSave }: BeamSlabProps) {
                         </>
                       ) : !isTwoWay ? (
                         <div className="space-y-1">
-                          <Label className="text-xs text-muted-foreground">${t.thicknessCheck}</Label>
+                          <Label className="text-xs text-muted-foreground">{t.thicknessCheck}</Label>
                           <Input
                             type="number"
                             value={slab.hActual}
@@ -1221,7 +1221,7 @@ export default function BeamSlab({ data, onSave }: BeamSlabProps) {
                       {/* Two-way solid also needs hActual */}
                       {isTwoWay && !isRibbed && (
                         <div className="space-y-1">
-                          <Label className="text-xs text-muted-foreground">${t.thicknessCheck}</Label>
+                          <Label className="text-xs text-muted-foreground">{t.thicknessCheck}</Label>
                           <Input
                             type="number"
                             value={slab.hActual}
@@ -1236,7 +1236,7 @@ export default function BeamSlab({ data, onSave }: BeamSlabProps) {
 
                       {/* Load */}
                       <div className="space-y-1">
-                        <Label className="text-xs text-muted-foreground">${t.load}</Label>
+                        <Label className="text-xs text-muted-foreground">{t.load}</Label>
                         <Input
                           type="number"
                           value={slab.load}
@@ -1252,13 +1252,13 @@ export default function BeamSlab({ data, onSave }: BeamSlabProps) {
                       <div className="col-span-full mt-1 mb-1">
                         <div className="flex items-center gap-2 text-xs font-semibold text-emerald-600 dark:text-emerald-400">
                           <ShieldCheck className="h-3.5 w-3.5" />
-                          ${t.reinforcementCheck}
+                          {t.reinforcementCheck}
                         </div>
                       </div>
 
                       {/* Rebar Count */}
                       <div className="space-y-1">
-                        <Label className="text-xs text-muted-foreground">${t.rebarCount}</Label>
+                        <Label className="text-xs text-muted-foreground">{t.rebarCount}</Label>
                         <Input
                           type="number"
                           value={slab.rebarCount}
@@ -1272,7 +1272,7 @@ export default function BeamSlab({ data, onSave }: BeamSlabProps) {
 
                       {/* Rebar Diameter */}
                       <div className="space-y-1">
-                        <Label className="text-xs text-muted-foreground">${t.rebarDiameter}</Label>
+                        <Label className="text-xs text-muted-foreground">{t.rebarDiameter}</Label>
                         <Select
                           value={slab.rebarDiameter}
                           onValueChange={(v) => updateSlab(slab.id, 'rebarDiameter', v)}
@@ -1293,7 +1293,7 @@ export default function BeamSlab({ data, onSave }: BeamSlabProps) {
 
                       {/* Cover */}
                       <div className="space-y-1">
-                        <Label className="text-xs text-muted-foreground">${t.beamCover}</Label>
+                        <Label className="text-xs text-muted-foreground">{t.beamCover}</Label>
                         <Input
                           type="number"
                           value={slab.cover}
@@ -1311,11 +1311,11 @@ export default function BeamSlab({ data, onSave }: BeamSlabProps) {
                       <div className="mt-3 p-3 rounded-lg border border-amber-200 dark:border-amber-800 bg-amber-50/50 dark:bg-amber-950/10 space-y-3">
                         <div className="flex items-center gap-2 text-sm font-medium text-amber-700 dark:text-amber-400">
                           <ShieldCheck className="h-4 w-4" />
-                          ${t.punchingCheck}
+                          {t.punchingCheck}
                         </div>
                         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                           <div className="space-y-1">
-                            <Label className="text-xs text-muted-foreground">${t.columnWidthLabel}</Label>
+                            <Label className="text-xs text-muted-foreground">{t.columnWidthLabel}</Label>
                             <Input
                               type="number"
                               value={slab.punchingColumnWidth}
@@ -1327,7 +1327,7 @@ export default function BeamSlab({ data, onSave }: BeamSlabProps) {
                             />
                           </div>
                           <div className="space-y-1">
-                            <Label className="text-xs text-muted-foreground">${t.columnDepthLabel}</Label>
+                            <Label className="text-xs text-muted-foreground">{t.columnDepthLabel}</Label>
                             <Input
                               type="number"
                               value={slab.punchingColumnDepth}
@@ -1339,7 +1339,7 @@ export default function BeamSlab({ data, onSave }: BeamSlabProps) {
                             />
                           </div>
                           <div className="space-y-1">
-                            <Label className="text-xs text-muted-foreground">${t.maxColumnLoad}</Label>
+                            <Label className="text-xs text-muted-foreground">{t.maxColumnLoad}</Label>
                             <Input
                               type="number"
                               value={slab.punchingReaction}
@@ -1351,7 +1351,7 @@ export default function BeamSlab({ data, onSave }: BeamSlabProps) {
                             />
                           </div>
                           <div className="space-y-1">
-                            <Label className="text-xs text-muted-foreground">${t.columnPosition}</Label>
+                            <Label className="text-xs text-muted-foreground">{t.columnPosition}</Label>
                             <Select
                               value={slab.punchingColumnType}
                               onValueChange={(v) => updateSlab(slab.id, 'punchingColumnType', v)}
@@ -1375,7 +1375,7 @@ export default function BeamSlab({ data, onSave }: BeamSlabProps) {
 
                     {/* Notes */}
                     <div className="mt-3 space-y-1">
-                      <Label className="text-xs text-muted-foreground">${t.notesLabel}</Label>
+                      <Label className="text-xs text-muted-foreground">{t.notesLabel}</Label>
                       <Textarea
                         value={slab.notes}
                         onChange={(e) => updateSlab(slab.id, 'notes', e.target.value)}
@@ -1410,7 +1410,7 @@ export default function BeamSlab({ data, onSave }: BeamSlabProps) {
                                 />
                                 <StatusBanner
                                   safe={result.thicknessSafe}
-                                  label={result.thicknessSafe ? '${t.thicknessCheck} — ${t.safeVerified}' : '${t.thicknessCheck} — ${t.unsafeNotVerified}'}
+                                  label={result.thicknessSafe ? '{t.thicknessCheck} — {t.safeVerified}' : '{t.thicknessCheck} — {t.unsafeNotVerified}'}
                                 />
                               </>
                             )}
@@ -1420,7 +1420,7 @@ export default function BeamSlab({ data, onSave }: BeamSlabProps) {
                               <>
                                 <div className="pt-2" />
                                 <div className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide px-1">
-                                  ${t.flexureCheck}
+                                  {t.flexureCheck}
                                 </div>
                                 {result.Mpositive > 0 && (
                                   <ResultRow
@@ -1462,12 +1462,12 @@ export default function BeamSlab({ data, onSave }: BeamSlabProps) {
                                 {result.overReinforced && (
                                   <div className="flex items-start gap-2 p-3 rounded-lg bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800">
                                     <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
-                                    <span className="text-xs text-amber-700 dark:text-amber-300">${t.overReinforced} (kd &gt; kb — WSD)</span>
+                                    <span className="text-xs text-amber-700 dark:text-amber-300">{t.overReinforced} (kd &gt; kb — WSD)</span>
                                   </div>
                                 )}
                                 <StatusBanner
                                   safe={result.flexureSafe}
-                                  label={result.flexureSafe ? '${t.flexureCheck} — ${t.safeVerified}' : '${t.flexureCheck} — ${t.unsafeNotVerified}'}
+                                  label={result.flexureSafe ? '{t.flexureCheck} — {t.safeVerified}' : '{t.flexureCheck} — {t.unsafeNotVerified}'}
                                 />
                               </>
                             )}
@@ -1477,7 +1477,7 @@ export default function BeamSlab({ data, onSave }: BeamSlabProps) {
                               <>
                                 <div className="pt-2" />
                                 <div className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide px-1">
-                                  ${t.shearCheck}
+                                  {t.shearCheck}
                                 </div>
                                 <ResultRow
                                   icon={<ShieldCheck className="h-4 w-4 text-muted-foreground" />}
@@ -1492,7 +1492,7 @@ export default function BeamSlab({ data, onSave }: BeamSlabProps) {
                                 />
                                 <StatusBanner
                                   safe={result.sectionSafe}
-                                  label={result.sectionSafe ? '${t.shearCheck} — ${t.safeVerified}' : '${t.shearCheck} — ${t.unsafeNotVerified}'}
+                                  label={result.sectionSafe ? '{t.shearCheck} — {t.safeVerified}' : '{t.shearCheck} — {t.unsafeNotVerified}'}
                                 />
                               </>
                             )}
@@ -1514,7 +1514,7 @@ export default function BeamSlab({ data, onSave }: BeamSlabProps) {
                                 />
                                 <StatusBanner
                                   safe={result.rebarSafe}
-                                  label={result.rebarSafe ? '${t.reinforcementCheck} — ${t.safeVerified}' : '${t.reinforcementCheck} — ${t.unsafeNotVerified}'}
+                                  label={result.rebarSafe ? '{t.reinforcementCheck} — {t.safeVerified}' : '{t.reinforcementCheck} — {t.unsafeNotVerified}'}
                                 />
                               </>
                             )}
@@ -1524,7 +1524,7 @@ export default function BeamSlab({ data, onSave }: BeamSlabProps) {
                               <div className="pt-2">
                                 <StatusBanner
                                   safe={result.punchingSafe}
-                                  label={result.punchingSafe ? '${t.punchingCheck} — ${t.safeVerified}' : '${t.punchingCheck} — ${t.unsafeNotVerified}'}
+                                  label={result.punchingSafe ? '{t.punchingCheck} — {t.safeVerified}' : '{t.punchingCheck} — {t.unsafeNotVerified}'}
                                 />
                               </div>
                             )}
@@ -1544,7 +1544,7 @@ export default function BeamSlab({ data, onSave }: BeamSlabProps) {
                   onClick={addSlab}
                 >
                   <Plus className="h-4 w-4 me-2" />
-                  ${t.addElement}
+                  {t.addElement}
                 </Button>
               )}
             </div>
@@ -1555,7 +1555,7 @@ export default function BeamSlab({ data, onSave }: BeamSlabProps) {
             <div className="space-y-4">
               {/* Beam Sub-type Selector */}
               <div className="space-y-2">
-                <Label className="text-sm font-medium text-foreground/80">${t.beamType}</Label>
+                <Label className="text-sm font-medium text-foreground/80">{t.beamType}</Label>
                 <Select
                   value={currentBeamType}
                   onValueChange={(val) => {
@@ -1582,7 +1582,7 @@ export default function BeamSlab({ data, onSave }: BeamSlabProps) {
                 </Select>
                 {currentBeamType === 'hidden' && (
                   <p className="text-[10px] text-muted-foreground">
-                    ${t.beamHidden}
+                    {t.beamHidden}
                   </p>
                 )}
               </div>
@@ -1624,7 +1624,7 @@ export default function BeamSlab({ data, onSave }: BeamSlabProps) {
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                       {/* Name */}
                       <div className="space-y-1">
-                        <Label className="text-xs text-muted-foreground">${t.beamName}</Label>
+                        <Label className="text-xs text-muted-foreground">{t.beamName}</Label>
                         <Input
                           value={beam.name}
                           onChange={(e) => updateBeam(beam.id, 'name', e.target.value)}
@@ -1636,7 +1636,7 @@ export default function BeamSlab({ data, onSave }: BeamSlabProps) {
 
                       {/* Floor */}
                       <div className="space-y-1">
-                        <Label className="text-xs text-muted-foreground">${t.floorLabelShort}</Label>
+                        <Label className="text-xs text-muted-foreground">{t.floorLabelShort}</Label>
                         <Input
                           value={beam.floor}
                           onChange={(e) => updateBeam(beam.id, 'floor', e.target.value)}
@@ -1648,7 +1648,7 @@ export default function BeamSlab({ data, onSave }: BeamSlabProps) {
 
                       {/* Support Condition */}
                       <div className="space-y-1">
-                        <Label className="text-xs text-muted-foreground">${t.supportNature}</Label>
+                        <Label className="text-xs text-muted-foreground">{t.supportNature}</Label>
                         <Select
                           value={beam.supportCondition}
                           onValueChange={(val) => updateBeam(beam.id, 'supportCondition', val)}
@@ -1669,7 +1669,7 @@ export default function BeamSlab({ data, onSave }: BeamSlabProps) {
 
                       {/* Span */}
                       <div className="space-y-1">
-                        <Label className="text-xs text-muted-foreground">${t.span}</Label>
+                        <Label className="text-xs text-muted-foreground">{t.span}</Label>
                         <Input
                           type="number"
                           value={beam.span}
@@ -1684,7 +1684,7 @@ export default function BeamSlab({ data, onSave }: BeamSlabProps) {
                       {/* Width */}
                       <div className="space-y-1">
                         <Label className="text-xs text-muted-foreground">
-                          ${t.sectionWidthB}
+                          {t.sectionWidthB}
                         </Label>
                         <Input
                           type="number"
@@ -1715,7 +1715,7 @@ export default function BeamSlab({ data, onSave }: BeamSlabProps) {
 
                       {/* Cover */}
                       <div className="space-y-1">
-                        <Label className="text-xs text-muted-foreground">${t.beamCover}</Label>
+                        <Label className="text-xs text-muted-foreground">{t.beamCover}</Label>
                         <Input
                           type="number"
                           value={beam.cover}
@@ -1729,7 +1729,7 @@ export default function BeamSlab({ data, onSave }: BeamSlabProps) {
 
                       {/* Rebar Count */}
                       <div className="space-y-1">
-                        <Label className="text-xs text-muted-foreground">${t.rebarCount}</Label>
+                        <Label className="text-xs text-muted-foreground">{t.rebarCount}</Label>
                         <Input
                           type="number"
                           value={beam.rebarCount}
@@ -1743,7 +1743,7 @@ export default function BeamSlab({ data, onSave }: BeamSlabProps) {
 
                       {/* Rebar Diameter */}
                       <div className="space-y-1">
-                        <Label className="text-xs text-muted-foreground">${t.rebarDiameter}</Label>
+                        <Label className="text-xs text-muted-foreground">{t.rebarDiameter}</Label>
                         <Select
                           value={beam.rebarDiameter}
                           onValueChange={(v) => updateBeam(beam.id, 'rebarDiameter', v)}
@@ -1764,7 +1764,7 @@ export default function BeamSlab({ data, onSave }: BeamSlabProps) {
 
                       {/* Moment */}
                       <div className="space-y-1">
-                        <Label className="text-xs text-muted-foreground">${t.momentLabel}</Label>
+                        <Label className="text-xs text-muted-foreground">{t.momentLabel}</Label>
                         <Input
                           type="number"
                           value={beam.moment}
@@ -1778,7 +1778,7 @@ export default function BeamSlab({ data, onSave }: BeamSlabProps) {
 
                       {/* Shear */}
                       <div className="space-y-1">
-                        <Label className="text-xs text-muted-foreground">${t.shearLabel}</Label>
+                        <Label className="text-xs text-muted-foreground">{t.shearLabel}</Label>
                         <Input
                           type="number"
                           value={beam.shear}
@@ -1792,7 +1792,7 @@ export default function BeamSlab({ data, onSave }: BeamSlabProps) {
 
                       {/* Stirrup Diameter */}
                       <div className="space-y-1">
-                        <Label className="text-xs text-muted-foreground">${t.stirrupDiameterLabel}</Label>
+                        <Label className="text-xs text-muted-foreground">{t.stirrupDiameterLabel}</Label>
                         <Select
                           value={beam.stirrupDiameter}
                           onValueChange={(v) => updateBeam(beam.id, 'stirrupDiameter', v)}
@@ -1813,7 +1813,7 @@ export default function BeamSlab({ data, onSave }: BeamSlabProps) {
 
                       {/* Stirrup Legs */}
                       <div className="space-y-1">
-                        <Label className="text-xs text-muted-foreground">${t.stirrupLegsLabel}</Label>
+                        <Label className="text-xs text-muted-foreground">{t.stirrupLegsLabel}</Label>
                         <Select
                           value={beam.stirrupLegs}
                           onValueChange={(v) => updateBeam(beam.id, 'stirrupLegs', v)}
@@ -1834,7 +1834,7 @@ export default function BeamSlab({ data, onSave }: BeamSlabProps) {
 
                       {/* Fs — Stirrup Steel Stress */}
                       <div className="space-y-1">
-                        <Label className="text-xs text-muted-foreground">${t.fsLabel}</Label>
+                        <Label className="text-xs text-muted-foreground">{t.fsLabel}</Label>
                         <Input
                           type="number"
                           value={beam.Fs}
@@ -1849,7 +1849,7 @@ export default function BeamSlab({ data, onSave }: BeamSlabProps) {
 
                     {/* Notes */}
                     <div className="mt-3 space-y-1">
-                      <Label className="text-xs text-muted-foreground">${t.notesLabel}</Label>
+                      <Label className="text-xs text-muted-foreground">{t.notesLabel}</Label>
                       <Textarea
                         value={beam.notes}
                         onChange={(e) => updateBeam(beam.id, 'notes', e.target.value)}
@@ -1879,7 +1879,7 @@ export default function BeamSlab({ data, onSave }: BeamSlabProps) {
                                 />
                                 <StatusBanner
                                   safe={result.thicknessSafe}
-                                  label={result.thicknessSafe ? '${t.thicknessCheck} — ${t.safeVerified}' : '${t.thicknessCheck} — ${t.unsafeNotVerified}'}
+                                  label={result.thicknessSafe ? '{t.thicknessCheck} — {t.safeVerified}' : '{t.thicknessCheck} — {t.unsafeNotVerified}'}
                                 />
                               </>
                             )}
@@ -1889,7 +1889,7 @@ export default function BeamSlab({ data, onSave }: BeamSlabProps) {
                               <>
                                 <div className="pt-2" />
                                 <div className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide px-1">
-                                  ${t.flexureCheck}
+                                  {t.flexureCheck}
                                 </div>
                                 <ResultRow
                                   icon={<Ruler className="h-4 w-4 text-muted-foreground" />}
@@ -1917,12 +1917,12 @@ export default function BeamSlab({ data, onSave }: BeamSlabProps) {
                                 {result.overReinforced && (
                                   <div className="flex items-start gap-2 p-3 rounded-lg bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800">
                                     <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
-                                    <span className="text-xs text-amber-700 dark:text-amber-300">${t.overReinforced} (kd &gt; kb — WSD)</span>
+                                    <span className="text-xs text-amber-700 dark:text-amber-300">{t.overReinforced} (kd &gt; kb — WSD)</span>
                                   </div>
                                 )}
                                 <StatusBanner
                                   safe={result.flexureSafe}
-                                  label={result.flexureSafe ? '${t.flexureCheck} — ${t.safeVerified}' : '${t.flexureCheck} — ${t.unsafeNotVerified}'}
+                                  label={result.flexureSafe ? '{t.flexureCheck} — {t.safeVerified}' : '{t.flexureCheck} — {t.unsafeNotVerified}'}
                                 />
                               </>
                             )}
@@ -1972,7 +1972,7 @@ export default function BeamSlab({ data, onSave }: BeamSlabProps) {
                                 />
                                 <StatusBanner
                                   safe={result.rebarSafe}
-                                  label={result.rebarSafe ? '${t.reinforcementCheck} — ${t.safeVerified}' : '${t.reinforcementCheck} — ${t.unsafeNotVerified}'}
+                                  label={result.rebarSafe ? '{t.reinforcementCheck} — {t.safeVerified}' : '{t.reinforcementCheck} — {t.unsafeNotVerified}'}
                                 />
                               </>
                             )}
