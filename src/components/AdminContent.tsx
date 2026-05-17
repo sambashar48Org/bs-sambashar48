@@ -111,7 +111,7 @@ export default function AdminContent() {
   // جلب البيانات
   // ═══════════════════════════════════════════════════════════════
 
-  const fetchUsers = useCallback(async () => {
+  const fetchUsers = useCallback(async (): Promise<User[] | null> => {
     setIsLoadingUsers(true);
     setError('');
     try {
@@ -119,12 +119,14 @@ export default function AdminContent() {
       if (!res.ok) {
         const data = await res.json().catch(() => null);
         setError(data?.error || 'فشل في تحميل المستخدمين');
-        return;
+        return null;
       }
       const data = await res.json();
       setUsers(data);
+      return data;
     } catch {
       setError('تعذر الاتصال بالخادم');
+      return null;
     } finally {
       setIsLoadingUsers(false);
     }
@@ -139,9 +141,13 @@ export default function AdminContent() {
       if (res.ok) {
         const data = await res.json();
         setPendingDevices(data.devices || []);
+      } else {
+        console.warn('[ADMIN] Failed to fetch pending devices:', res.status);
+        setPendingDevices([]);
       }
-    } catch {
-      // صامت
+    } catch (err) {
+      console.warn('[ADMIN] Error fetching pending devices:', err);
+      setPendingDevices([]);
     } finally {
       setIsLoadingPending(false);
     }
@@ -164,9 +170,44 @@ export default function AdminContent() {
     }
   }, []);
 
+  // تحميل أجهزة جميع المستخدمين العاديين تلقائياً بعد جلب قائمة المستخدمين
+  const fetchAllUserDevices = useCallback(async (userList: User[]) => {
+    const nonAdminUsers = userList.filter((u) => u.role !== 'admin');
+    // تحميل أجهزة كل المستخدمين بالتوازي
+    const devicePromises = nonAdminUsers.map(async (u) => {
+      try {
+        const res = await fetch(`/api/admin/users/${u.id}/devices`, {
+          credentials: 'include',
+        });
+        if (res.ok) {
+          const data = await res.json();
+          return { userId: u.id, devices: data.devices || [] };
+        }
+      } catch {
+        // صامت
+      }
+      return null;
+    });
+    const results = await Promise.all(devicePromises);
+    const devicesMap: Record<string, Device[]> = {};
+    for (const result of results) {
+      if (result) {
+        devicesMap[result.userId] = result.devices;
+      }
+    }
+    setUserDevices((prev) => ({ ...prev, ...devicesMap }));
+  }, []);
+
   const refreshAll = useCallback(async () => {
-    await Promise.all([fetchUsers(), fetchPendingDevices()]);
-  }, [fetchUsers, fetchPendingDevices]);
+    const usersData = await fetchUsers();
+    if (usersData) {
+      // جلب الأجهزة المعلقة + أجهزة جميع المستخدمين بالتوازي
+      await Promise.all([
+        fetchPendingDevices(),
+        fetchAllUserDevices(usersData),
+      ]);
+    }
+  }, [fetchUsers, fetchPendingDevices, fetchAllUserDevices]);
 
   useEffect(() => {
     if (user) refreshAll();

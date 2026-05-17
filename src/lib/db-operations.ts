@@ -608,12 +608,39 @@ export async function deleteDevice(deviceId: string) {
 /** جلب جميع الأجهزة المعلقة (للمدير) */
 export async function getPendingDevices() {
   // Use supabaseAdmin to bypass RLS — admin operation
-  const { data, error } = await supabaseAdmin
+  // NOTE: لا نستخدم join مع users لأنه قد يفشل مع RLS الصارم
+  // بدلاً من ذلك نجلب الأجهزة المعلقة ثم نجلب بيانات المستخدمين بشكل منفصل
+  const { data: devices, error } = await supabaseAdmin
     .from('devices')
-    .select('*, users(username, full_name)')
+    .select('*')
     .eq('is_approved', false)
     .order('created_at', { ascending: false });
 
   if (error) throw new Error('فشل جلب الأجهزة المعلقة');
-  return data || [];
+
+  // جلب بيانات المستخدمين بشكل منفصل لربطها بالأجهزة
+  const deviceList = devices || [];
+  if (deviceList.length === 0) return [];
+
+  // جمع معرّفات المستخدمين الفريدة
+  const userIds = [...new Set(deviceList.map((d: Record<string, unknown>) => d.user_id as string))];
+
+  const { data: usersData } = await supabaseAdmin
+    .from('users')
+    .select('id, username, full_name')
+    .in('id', userIds);
+
+  // بناء خريطة المستخدمين
+  const userMap = new Map<string, { username: string; full_name: string }>();
+  if (usersData) {
+    for (const u of usersData) {
+      userMap.set(u.id, { username: u.username, full_name: u.full_name });
+    }
+  }
+
+  // ربط بيانات المستخدمين بالأجهزة
+  return deviceList.map((device: Record<string, unknown>) => ({
+    ...device,
+    users: userMap.get(device.user_id as string) || null,
+  }));
 }
