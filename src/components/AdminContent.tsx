@@ -177,6 +177,8 @@ export default function AdminContent() {
   // تحميل أجهزة جميع المستخدمين تلقائياً بعد جلب قائمة المستخدمين (بما فيهم المشرفون الآخرون)
   const fetchAllUserDevices = useCallback(async (userList: User[]) => {
     // جلب أجهزة جميع المستخدمين ما عدا المدير الحالي (لا حاجة لعرض أجهزته هو)
+    // نحمّل أجهزة جميع المستخدمين بمن فيهم المعلّقون (is_approved = false)
+    // لأن أجهزتهم قد تكون مسجلة وبانتظار الموافقة
     const targetUsers = userList.filter((u) => u.id !== currentAdminId);
     // تحميل أجهزة كل المستخدمين بالتوازي
     const devicePromises = targetUsers.map(async (u) => {
@@ -217,6 +219,31 @@ export default function AdminContent() {
   useEffect(() => {
     if (user) refreshAll();
   }, [user, refreshAll]);
+
+  // ─── تحديث تلقائي كل 30 ثانية للأجهزة المعلقة ───
+  // يتيح للمدير رؤية طلبات الأجهزة الجديدة دون إعادة تحميل الصفحة
+  useEffect(() => {
+    if (!user) return;
+    const interval = setInterval(async () => {
+      try {
+        const res = await fetch('/api/admin/users/00000000-0000-0000-0000-000000000000/devices?pending=all', {
+          credentials: 'include',
+        });
+        if (res.ok) {
+          const data = await res.json();
+          const newPending = data.devices || [];
+          setPendingDevices((prev) => {
+            // تحديث فقط إذا تغير العدد (تجنب إعادة الرسم غير الضرورية)
+            if (prev.length !== newPending.length) return newPending;
+            return prev;
+          });
+        }
+      } catch {
+        // صامت — أفضل جهد
+      }
+    }, 30000);
+    return () => clearInterval(interval);
+  }, [user]);
 
   // ═══════════════════════════════════════════════════════════════
   // إجراءات المستخدمين
@@ -1061,25 +1088,79 @@ export default function AdminContent() {
               </Card>
             )}
 
+            {/* ─── أجهزة معلقة بانتظار الموافقة ─── قسم بارز دائماً ─── */}
+            {pendingDevices.length > 0 && (
+              <Card className="border-2 border-amber-400 bg-amber-50/30 shadow-md">
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-lg font-bold text-amber-800 flex items-center gap-2">
+                    <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-amber-200 animate-pulse">
+                      <Smartphone className="w-5 h-5 text-amber-700" />
+                    </div>
+                    أجهزة بانتظار الموافقة
+                    <Badge className="bg-amber-500 text-white animate-pulse">{pendingDevices.length}</Badge>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-2">
+                  <p className="text-xs text-amber-600 mb-3">
+                    هذه الأجهزة مسجلة من مستخدمين معتمدين وتحتاج موافقتك للسماح لهم بالدخول.
+                  </p>
+                  {pendingDevices.map((device) => (
+                    <div key={device.id} className="flex items-center gap-3 p-3 bg-white border border-amber-200 rounded-xl shadow-sm">
+                      <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-amber-100 text-amber-700 shrink-0">
+                        {getDeviceIcon(device.device_name)}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-semibold text-gray-800">{device.device_name || 'جهاز غير معروف'}</p>
+                        <p className="text-xs text-gray-500">
+                          المستخدم: {device.users?.full_name || device.users?.username || 'غير معروف'} — {formatDateShort(device.created_at)}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <Button
+                          size="sm"
+                          onClick={() => handleApproveDevice(device.id, device.user_id)}
+                          disabled={actionLoading === device.id}
+                          className="gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white h-9 px-3"
+                        >
+                          {actionLoading === device.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle2 className="w-3.5 h-3.5" />}
+                          <span>موافقة</span>
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleRejectDevice(device.id, device.user_id)}
+                          disabled={actionLoading === device.id}
+                          className="gap-1.5 border-red-300 text-red-600 hover:bg-red-50 h-9 px-3"
+                        >
+                          {actionLoading === device.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <XCircle className="w-3.5 h-3.5" />}
+                          <span>رفض</span>
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </CardContent>
+              </Card>
+            )}
+
             {/* ─── أجهزة كل مستخدم ─── */}
             <Card>
               <CardHeader className="pb-3">
                 <CardTitle className="text-lg font-bold text-gray-800 flex items-center gap-2">
                   <Monitor className="w-5 h-5 text-emerald-600" />
-                  أجهزة المستخدمين المعتمدين
+                  أجهزة المستخدمين
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                {users.filter((u) => u.id !== currentAdminId && u.is_approved !== false).length === 0 ? (
+                {users.filter((u) => u.id !== currentAdminId).length === 0 ? (
                   <div className="text-center py-8 text-gray-400">
                     <Users className="w-10 h-10 mx-auto mb-2 opacity-50" />
-                    <p className="text-sm font-medium">لا يوجد مستخدمون معتمدون</p>
-                    <p className="text-xs mt-1">وافق على الحسابات المعلقة أعلاه أولاً</p>
+                    <p className="text-sm font-medium">لا يوجد مستخدمون</p>
+                    <p className="text-xs mt-1">أضف مستخدمين أو وافق على الحسابات المعلقة</p>
                   </div>
                 ) : (
                   <div className="space-y-2">
                     {users
-                      .filter((u) => u.id !== currentAdminId && u.is_approved !== false)
+                      .filter((u) => u.id !== currentAdminId)
                       .map((u) => {
                         const isExpanded = expandedUser === u.id;
                         const devices = userDevices[u.id] || [];
@@ -1089,7 +1170,7 @@ export default function AdminContent() {
                         const totalDevCount = devices.length;
 
                         return (
-                          <div key={u.id} className={`border rounded-xl overflow-hidden ${u.is_active === false ? 'opacity-60' : ''}`}>
+                          <div key={u.id} className={`border rounded-xl overflow-hidden ${u.is_active === false || u.is_approved === false ? 'opacity-80' : ''}`}>
                             {/* صف المستخدم */}
                             <div
                               className="w-full flex items-center gap-3 p-4 hover:bg-gray-50 transition-colors text-right cursor-pointer"
@@ -1104,7 +1185,8 @@ export default function AdminContent() {
                               <div className="flex-1 min-w-0 text-right">
                                 <p className="text-sm font-semibold text-gray-800">
                                   {u.full_name}
-                                  {u.is_active === false && <Badge className="mr-2 bg-red-100 text-red-700 text-[10px]">معطّل</Badge>}
+                                  {u.is_approved === false && <Badge className="mr-2 bg-amber-100 text-amber-700 text-[10px]">حساب معلّق</Badge>}
+                                  {u.is_active === false && u.is_approved !== false && <Badge className="mr-2 bg-red-100 text-red-700 text-[10px]">معطّل</Badge>}
                                 </p>
                                 <p className="text-xs text-gray-500">@{u.username}</p>
                               </div>
