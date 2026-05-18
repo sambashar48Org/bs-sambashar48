@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { Building2, Shield, Lock, Loader2, AlertTriangle } from 'lucide-react';
+import { Building2, Shield, Lock, Loader2, AlertTriangle, Power } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -28,6 +28,9 @@ export default function LoginPage() {
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [pendingApproval, setPendingApproval] = useState<{ deviceName: string; username: string; userId: string; reason?: string } | null>(null);
+  const [accountDisabled, setAccountDisabled] = useState(false);
+  const [isReactivating, setIsReactivating] = useState(false);
+  const [reactivationSuccess, setReactivationSuccess] = useState('');
 
   // ─────────────────────────────────────────────────────
   // SMART CACHE CLEANUP — version-aware
@@ -118,6 +121,7 @@ export default function LoginPage() {
 
         // حالة تعطيل الحساب من المدير
         if (data.status === 'account_disabled') {
+          setAccountDisabled(true);
           setError(data.message || 'تم تعطيل حسابك من قِبل المدير — تواصل مع المشرف');
           setIsLoading(false);
           return;
@@ -189,9 +193,45 @@ export default function LoginPage() {
     }
   }, [pendingApproval, password, setAuth]);
 
+  // إعادة تفعيل حساب المدير المعطل
+  const handleEmergencyActivate = useCallback(async () => {
+    if (!username.trim() || !password.trim()) return;
+    setIsReactivating(true);
+    setReactivationSuccess('');
+    setError('');
+    try {
+      const res = await fetch('/api/auth/emergency-activate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: username.trim(), password }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setReactivationSuccess(data.message || 'تم إعادة التفعيل بنجاح');
+        setAccountDisabled(false);
+        setError('');
+        // محاولة تسجيل الدخول تلقائياً بعد التفعيل
+        setTimeout(() => {
+          handleSubmit(new Event('submit') as unknown as React.FormEvent);
+        }, 1000);
+      } else if (data.alreadyActive) {
+        setReactivationSuccess(data.message);
+        setAccountDisabled(false);
+        setError('');
+      } else {
+        setError(data.error || 'فشل إعادة التفعيل');
+      }
+    } catch {
+      setError('تعذر الاتصال بالخادم لإعادة التفعيل');
+    } finally {
+      setIsReactivating(false);
+    }
+  }, [username, password, handleSubmit]);
+
   const handleLogout = useCallback(() => {
     clearDeviceFingerprint();
     setPendingApproval(null);
+    setAccountDisabled(false);
     useAuthStore.getState().clearAuth();
   }, []);
 
@@ -263,9 +303,34 @@ export default function LoginPage() {
             {error && (
               <div className="mb-4 p-3 rounded-lg border text-sm flex items-start gap-3 bg-red-50 border-red-200 text-red-800">
                 <AlertTriangle className="w-5 h-5 shrink-0 mt-0.5 text-red-500" />
-                <div>
+                <div className="flex-1">
                   <p className="font-medium">خطأ في تسجيل الدخول</p>
                   <p className="mt-0.5 opacity-80">{error}</p>
+                  {accountDisabled && (
+                    <button
+                      type="button"
+                      onClick={handleEmergencyActivate}
+                      disabled={isReactivating}
+                      className="mt-2 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-amber-500 hover:bg-amber-600 text-white text-xs font-semibold transition-colors disabled:opacity-50"
+                    >
+                      {isReactivating ? (
+                        <><Loader2 className="w-3.5 h-3.5 animate-spin" /><span>جاري إعادة التفعيل...</span></>
+                      ) : (
+                        <><Power className="w-3.5 h-3.5" /><span>إعادة تفعيل حسابي</span></>
+                      )}
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Reactivation Success */}
+            {reactivationSuccess && (
+              <div className="mb-4 p-3 rounded-lg border text-sm flex items-start gap-3 bg-emerald-50 border-emerald-200 text-emerald-800">
+                <Power className="w-5 h-5 shrink-0 mt-0.5 text-emerald-500" />
+                <div>
+                  <p className="font-medium">تم بنجاح</p>
+                  <p className="mt-0.5 opacity-80">{reactivationSuccess}</p>
                 </div>
               </div>
             )}
