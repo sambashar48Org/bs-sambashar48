@@ -43,8 +43,9 @@ keep-alive.pid
 # Skills (not needed for deployment)
 skills/
 
-# Download
+# Download & Upload (user-generated content)
 download/
+upload/*
 
 # Bun
 bun.lock
