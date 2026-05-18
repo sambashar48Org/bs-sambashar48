@@ -1,103 +1,11 @@
 /**
  * B.S Evaluation — Engineering Calculation Engine
- * Working Stress Design (WSD) — Syrian Arab Code 2024
+ * Working Stress Design (WSD) — Syrian Arab Code 2024 (6th Edition)
+ * الطبعة السادسة — الكود العربي السوري 2024
  * طريقة التشغيل (الكلاسيكية) — الوحدات: كغ/سم² , طن , سم
  */
 
-import { WSD, SLAB_ALPHA, BEAM_ALPHA } from './constants';
-
-// ===================================================================
-// 0. طبقة الإعدادات الهندسية المركزية — Global Unit Filter
-// الكود العربي السوري 2024 — طريقة التشغيل WSD
-// ===================================================================
-
-/**
- * getAllowableStresses — الدالة المركزية لإعدادات الإجهادات المسموحة
- * Syrian Arab Code 2024 — WSD Method
- *
- * تُنظّم جميع الثوابت التجريبية بناءً على نظام الوحدات المختار
- * قبل تشغيل أي فحص إنشائي. يجب استدعاؤها في بداية كل دالة فحص.
- *
- * @param fc - المقاومة الاسطوانية المميزة f'c
- * @param fy - إجهاد خضوع حديد التسليح
- * @param unitSystem - نظام الوحدات: 'kg_cm' أو 'N_mm' أو 'MPa'
- */
-export interface AllowableStressesResult {
-  /** الإجهاد المسموح للخرسانة بسبب الانحناء */
-  fc_allowable: number;
-  /** مقاومة القص الخرسانية */
-  vc: number;
-  /** إجهاد القص الأقصى المسموح */
-  vmax: number;
-  /** إجهاد الثقب المسموح */
-  vp_allowable: number;
-  /** معامل المرونة للخرسانة */
-  Ec: number;
-  /** الإجهاد المسموح لحديد التسليح (انحناء) */
-  fs_allowable: number;
-  /** الإجهاد المسموح لحديد الأطواق */
-  Fst: number;
-  /** معامل المرونة للحديد */
-  Es: number;
-  /** نسبة النمطية (معامل التحويل) */
-  n: number;
-  /** نظام الوحدات المستخدم */
-  unitSystem: string;
-  /** وحدات الإجهاد للعرض */
-  stressUnit: string;
-}
-
-export function getAllowableStresses(
-  fc: number,
-  fy: number,
-  unitSystem: string = 'kg_cm'
-): AllowableStressesResult {
-  const isSI = unitSystem === 'N_mm' || unitSystem === 'MPa';
-
-  // ─── ثوابت الخرسانة ───
-  const fc_allowable = 0.40 * fc;  // 0.4 × f'c — ثابت لكلا النظامين
-
-  let vc: number;
-  let vmax: number;
-  let vp_allowable: number;
-  let Ec: number;
-
-  if (isSI) {
-    // النظام الدولي: N/mm² أو MPa
-    vc = 0.16 * Math.sqrt(fc);              // مقاومة القص (N/mm²)
-    vmax = 0.80 * Math.sqrt(fc);            // القص الأقصى (N/mm²)
-    vp_allowable = 0.16 * Math.sqrt(fc);    // ثقب البلاطات (N/mm²)
-    Ec = 4700 * Math.sqrt(fc);              // معامل المرونة (N/mm²)
-  } else {
-    // النظام المتري التقني: كغ/سم²
-    vc = 0.50 * Math.sqrt(fc);              // مقاومة القص (كغ/سم²)
-    vmax = 2.50 * Math.sqrt(fc);            // القص الأقصى (كغ/سم²)
-    vp_allowable = 0.50 * Math.sqrt(fc);    // ثقب البلاطات (كغ/سم²)
-    Ec = 15000 * Math.sqrt(fc);             // معامل المرونة (كغ/سم²)
-  }
-
-  // ─── ثوابت الحديد ───
-  const fs_allowable = 0.50 * fy;           // 0.5 × fy — ثابت لكلا النظامين
-  const Fst = 0.50 * fy;                    // إجهاد الأطواق = 0.5 × fy
-  const Es = isSI ? 200000 : 2000000;       // معامل المرونة (N/mm² أو كغ/سم²)
-
-  // ─── نسبة النمطية ───
-  const n = Math.round(Es / Ec);
-
-  return {
-    fc_allowable: Math.round(fc_allowable * 100) / 100,
-    vc: Math.round(vc * 100) / 100,
-    vmax: Math.round(vmax * 100) / 100,
-    vp_allowable: Math.round(vp_allowable * 100) / 100,
-    Ec: Math.round(Ec * 100) / 100,
-    fs_allowable: Math.round(fs_allowable * 100) / 100,
-    Fst: Math.round(Fst * 100) / 100,
-    Es,
-    n,
-    unitSystem,
-    stressUnit: isSI ? 'N/mm²' : 'kg/cm²',
-  };
-}
+import { WSD, SLAB_ALPHA, BEAM_ALPHA, TWO_WAY_EQUIVALENT, RIBBED_SLAB_CONSTRAINTS, FLAT_SLAB_CONSTRAINTS } from './constants';
 
 // ===================================================================
 // أنواع النتائج
@@ -152,22 +60,20 @@ export interface StirrupResult {
   areaRequired: number;
   areaProvided: number;
   safe: boolean;
+  isHighShear: boolean;
 }
 
 // ===================================================================
-// أنواع نتائج الأساسات الجديدة
+// أنواع نتائج الأساسات
 // ===================================================================
 
-/** نتيجة فحص الأساس المنفرد */
 export interface IsolatedFoundationResult extends CalcResult {
   actualStress: number;
   allowableStress: number;
 }
 
-/** حالة اللامركزية للأساس المشترك */
 export type EccentricityCase = 'ideal' | 'acceptable' | 'danger';
 
-/** نتيجة فحص الأساس المشترك */
 export interface CombinedFoundationResult extends CalcResult {
   eccentricity: number;
   eccentricityCase: EccentricityCase;
@@ -177,7 +83,6 @@ export interface CombinedFoundationResult extends CalcResult {
   suggestion?: string;
 }
 
-/** نتيجة فحص الحصيرة (الثقب) */
 export interface MatFoundationResult extends CalcResult {
   vp: number;
   vcp: number;
@@ -186,14 +91,12 @@ export interface MatFoundationResult extends CalcResult {
   suggestion?: string;
 }
 
-/** نتيجة فحص الأساس المستمر */
 export interface ContinuousFoundationResult extends CalcResult {
   actualStress: number;
   allowableStress: number;
   Bmin?: number;
 }
 
-/** نتيجة فحص الأعمدة والجدران المحدثة */
 export interface ColumnWallResult extends CalcResult {
   Aeq: number;
   actualStress: number;
@@ -205,17 +108,199 @@ export interface ColumnWallResult extends CalcResult {
 }
 
 // ===================================================================
-// 1. شرط السماكة — Slab & Beam Minimum Thickness
+// أنواع نتائج الفحوص المتخصصة — الكود العربي السوري 2024
+// ===================================================================
+
+export type UnitSystem = 'kg_cm' | 'N_mm';
+
+/** نتيجة الإجهادات المسموحة المركزية */
+export interface AllowableStressesResult {
+  /** نظام الوحدات */
+  unitSystem: UnitSystem;
+  /** معامل المرونة للخرسانة */
+  Ec: number;
+  /** معامل المرونة للحديد */
+  Es: number;
+  /** نسبة النمطية n = 15 (ثابتة — الطبعة السادسة) */
+  n: number;
+  /** إجهاد الضغط المسموح بسبب الانحناء */
+  fcAllowable: number;
+  /** إجهاد الضغط المسموح بحالة الضغط المحوري */
+  fcAllowableAxial: number;
+  /** إجهاد الخضوع المسموح للحديد */
+  fsAllowable: number;
+  /** مقاومة القص الخرسانية */
+  vc: number;
+  /** الإجهاد الأقصى للقص */
+  vmax: number;
+  /** مقاومة الثقب */
+  vp: number;
+  /** وحدات الإجهاد */
+  stressUnit: string;
+  /** وحدات معامل المرونة */
+  modulusUnit: string;
+}
+
+/** نتيجة فحص البلاطة المصمتة باتجاه واحد */
+export interface OneWaySolidSlabResult {
+  thickness: SlabThicknessResult;
+  flexure: FlexureCheckResult | null;
+  shear: ShearCheckResult | null;
+  reinforcement: { safe: boolean; AsProvided: number; AsMin: number; rhoMin: number } | null;
+  overallSafe: boolean;
+  overallStatusAr: string;
+}
+
+/** نتيجة فحص البلاطة المصمتة باتجاهين */
+export interface TwoWaySolidSlabResult {
+  thickness: SlabThicknessResult;
+  flexureShort: FlexureCheckResult | null;
+  flexureLong: FlexureCheckResult | null;
+  shear: ShearCheckResult | null;
+  reinforcement: { safe: boolean; AsProvided: number; AsMin: number; rhoMin: number } | null;
+  overallSafe: boolean;
+  overallStatusAr: string;
+}
+
+/** نتيجة فحص البلاطة الهوردي باتجاه واحد */
+export interface OneWayRibbedSlabResult {
+  thickness: SlabThicknessResult;
+  geometricChecks: {
+    toppingThickEnough: boolean;
+    ribWidthEnough: boolean;
+    hfActual: number;
+    hfMin: number;
+    bwActual: number;
+    bwMin: number;
+  };
+  flexure: FlexureCheckResult | null;
+  shear: ShearCheckResult | null;
+  reinforcement: { safe: boolean; AsProvided: number; AsMin: number; rhoMin: number } | null;
+  overallSafe: boolean;
+  overallStatusAr: string;
+}
+
+/** نتيجة فحص البلاطة الهوردي باتجاهين */
+export interface TwoWayRibbedSlabResult {
+  thickness: SlabThicknessResult;
+  geometricChecks: {
+    toppingThickEnough: boolean;
+    ribWidthEnough: boolean;
+    hfActual: number;
+    hfMin: number;
+    bwActual: number;
+    bwMin: number;
+  };
+  flexureShort: FlexureCheckResult | null;
+  flexureLong: FlexureCheckResult | null;
+  shear: ShearCheckResult | null;
+  reinforcement: { safe: boolean; AsProvided: number; AsMin: number; rhoMin: number } | null;
+  overallSafe: boolean;
+  overallStatusAr: string;
+}
+
+/** نتيجة فحص البلاطة الفطرية */
+export interface FlatSlabResult {
+  thickness: SlabThicknessResult;
+  flexure: FlexureCheckResult | null;
+  shear: ShearCheckResult | null;
+  punchingShear: PunchingShearResult | null;
+  reinforcement: { safe: boolean; AsProvided: number; AsMin: number; rhoMin: number } | null;
+  overallSafe: boolean;
+  overallStatusAr: string;
+}
+
+/** نتيجة فحص الجائز الساقط */
+export interface DroppedBeamResult {
+  thickness: SlabThicknessResult;
+  flexure: FlexureCheckResult | null;
+  shear: ShearCheckResult | null;
+  stirrups: StirrupResult | null;
+  reinforcement: { safe: boolean; AsProvided: number; AsMin: number; rhoMin: number } | null;
+  overallSafe: boolean;
+  overallStatusAr: string;
+}
+
+/** نتيجة فحص الجائز المخفي */
+export interface HiddenBeamResult {
+  thickness: SlabThicknessResult;
+  flexure: FlexureCheckResult | null;
+  shear: ShearCheckResult | null;
+  stirrups: StirrupResult | null;
+  reinforcement: { safe: boolean; AsProvided: number; AsMin: number; rhoMin: number } | null;
+  overallSafe: boolean;
+  overallStatusAr: string;
+}
+
+// ===================================================================
+// 0. دالة الإجهادات المسموحة المركزية — getAllowableStresses
+// الكود العربي السوري 2024 — الطبعة السادسة
 // ===================================================================
 
 /**
- * فحص شرط السماكة للبلاطات
- * الكود العربي السوري 2024 — WSD
+ * دالة الإجهادات المسموحة المركزية — المرشح العام للوحدات
+ * Centralized engineering configuration for WSD allowable stresses
  *
- * حدود السماكة الدنيا المطلقة:
- * - بلاطة مصمتة: hMin ≥ 8 سم
- * - بلاطة هوردي: hfMin = max(5, lClear/12) سم
- * - بلاطة فطرية: hMin ≥ 15 سم
+ * الطبعة السادسة 2024:
+ *   Ec = 18000√f'ci (كغ/سم²) أو 5700√f'ci (MPa)
+ *   n = 15 (ثابتة للحالات العادية)
+ *   fc_allowable = 0.40 × f'c (انحناء)
+ *   fc_allowable = 0.30 × f'c (ضغط محوري)
+ *   fs_allowable = 0.50 × fy
+ *   vc = 0.50√f'c (كغ/سم²) أو 0.16√f'c (MPa)
+ *   vmax = 2.5√f'c (كغ/سم²) أو 0.80√f'c (MPa)
+ *   vp = 0.50√f'c (كغ/سم²) أو 0.16√f'c (MPa) — للبلاطات
+ */
+export function getAllowableStresses(fc: number, fy: number, unitSystem: UnitSystem): AllowableStressesResult {
+  const n = WSD.n; // 15 — ثابتة
+
+  if (unitSystem === 'kg_cm') {
+    return {
+      unitSystem: 'kg_cm',
+      Ec: WSD.Ec_kg(fc),
+      Es: WSD.Es_kg,
+      n,
+      fcAllowable: WSD.fc_allowable_flexure * fc,   // 0.40 × f'c
+      fcAllowableAxial: WSD.fc_allowable_axial * fc, // 0.30 × f'c
+      fsAllowable: WSD.getFsAllowable(fy),           // 0.50 × fy
+      vc: WSD.vc_kg(fc),                            // 0.50√f'c
+      vmax: WSD.vmax_kg(fc),                        // 2.5√f'c
+      vp: WSD.vp_kg(fc),                            // 0.50√f'c
+      stressUnit: 'كغ/سم²',
+      modulusUnit: 'كغ/سم²',
+    };
+  } else {
+    return {
+      unitSystem: 'N_mm',
+      Ec: WSD.Ec_MPa(fc),
+      Es: WSD.Es_MPa,
+      n,
+      fcAllowable: WSD.fc_allowable_flexure * fc,   // 0.40 × f'c
+      fcAllowableAxial: WSD.fc_allowable_axial * fc, // 0.30 × f'c
+      fsAllowable: WSD.getFsAllowable(fy),           // 0.50 × fy
+      vc: WSD.vc_MPa(fc),                           // 0.16√f'c
+      vmax: WSD.vmax_MPa(fc),                       // 0.80√f'c
+      vp: WSD.vp_MPa(fc),                           // 0.16√f'c
+      stressUnit: 'N/mm²',
+      modulusUnit: 'N/mm²',
+    };
+  }
+}
+
+// ===================================================================
+// 1. شرط السماكة — Slab & Beam Minimum Thickness
+// ===================================================================
+
+const conditionMap: Record<string, string> = {
+  'بسيط': 'simple',
+  'مستمر من طرف واحد': 'oneEndContinuous',
+  'مستمر من طرفين': 'bothEndsContinuous',
+  'كابولي حر': 'cantilever',
+};
+
+/**
+ * فحص شرط السماكة للبلاطات
+ * محدث وفق الكود العربي السوري 2024 (الطبعة السادسة)
  */
 export function checkSlabThickness(params: {
   slabType: 'oneWaySolid' | 'twoWaySolid' | 'oneWayRibbed' | 'twoWayRibbed' | 'flatSlab';
@@ -224,92 +309,69 @@ export function checkSlabThickness(params: {
   hActual: number;     // السماكة المنفذة (سم)
   spanLong?: number;   // المجاز الطويل للبلاطة باتجاهين
   spanShort?: number;  // المجاز القصير للبلاطة باتجاهين
-  sideLengths?: number[];   // أطوال الأضلاع الأربعة [L1,L2,L3,L4]
-  sideConditions?: string[]; // حالة كل ضلع: 'free' أو 'continuous'
-  lClearRib?: number;  // المسافة الصافية بين الأضلاع (هوردي)
-  hfActual?: number;   // سماكة البلاطة العلوية (هوردي)
+  flatSlabPanelType?: 'exterior' | 'interior'; // نوع الباكية للبلاطة الفطرية
 }): SlabThicknessResult {
-  const { slabType, supportCondition, span, hActual, spanLong, spanShort,
-          sideLengths, sideConditions, lClearRib, hfActual } = params;
+  const { slabType, supportCondition, span, hActual, spanLong, spanShort, flatSlabPanelType } = params;
   let hMin: number;
   let formula: string;
-
-  const conditionMap: Record<string, string> = {
-    'بسيط': 'simple',
-    'مستمر من طرف واحد': 'oneEndContinuous',
-    'مستمر من طرفين': 'bothEndsContinuous',
-    'كابولي حر': 'cantilever',
-  };
 
   const condKey = conditionMap[supportCondition] || 'simple';
 
   if (slabType === 'oneWaySolid') {
-    // ─── بلاطة مصمتة باتجاه واحد ───
-    // α: بسيط=25, مستمر طرف=29, مستمر طرفين=33, كابولي=10
-    const alpha = SLAB_ALPHA.oneWaySolid[condKey as keyof typeof SLAB_ALPHA.oneWaySolid] || 25;
+    const alpha = SLAB_ALPHA.oneWaySolid[condKey as keyof typeof SLAB_ALPHA.oneWaySolid] || 20;
     hMin = span / alpha;
-    // حد أدنى مطلق: 8 سم
-    if (hMin < 8) hMin = 8;
-    formula = `h = L/${alpha} = ${span}/${alpha} = ${(span/alpha).toFixed(1)} سم (min 8)`;
-
+    // السماكة الدنيا المطلقة 80 مم = 8 سم
+    hMin = Math.max(hMin, 8);
+    formula = `h = L/${alpha} = ${span}/${alpha} = ${(span / alpha).toFixed(1)} سم (h_min = ${hMin.toFixed(1)} سم)`;
   } else if (slabType === 'twoWaySolid') {
-    // ─── بلاطة مصمتة باتجاهين ───
-    // المحيط المكافئ: P_equiv = Σ(β_i × L_i)
-    // β = 0.8 للضلع المستمر، β = 1.0 للضلع الحر
-    // h = P_equiv / 140
-    if (sideLengths && sideLengths.length === 4 && sideConditions) {
-      const beta = sideConditions.map(c => c === 'free' ? 1.0 : 0.80);
-      const P_equiv = sideLengths.reduce((sum, len, idx) => sum + beta[idx] * len, 0);
-      hMin = P_equiv / 140;
-      formula = `h = P_equiv/140 = ${P_equiv.toFixed(1)}/140 = ${hMin.toFixed(1)} سم`;
+    const lLong = spanLong || span;
+    const lShort = spanShort || span;
+    if (supportCondition === 'بسيط' || supportCondition === 'simple') {
+      hMin = lLong / SLAB_ALPHA.twoWaySolid.simple;
+      formula = `h = L_long/${SLAB_ALPHA.twoWaySolid.simple} = ${lLong}/${SLAB_ALPHA.twoWaySolid.simple} = ${hMin.toFixed(1)} سم`;
     } else {
-      // طريقة مبسطة: 2×(Lx + Ly) / 140
-      const lLong = spanLong || span;
-      const lShort = spanShort || span;
+      // المحيط المكافئ — الطبعة السادسة: P_equiv / 140
+      const beta_c = TWO_WAY_EQUIVALENT.betaContinuous; // 0.76
+      const beta_f = TWO_WAY_EQUIVALENT.betaFree;       // 1.00
+      // حساب المحيط المكافئ (4 أضلاع: 2 طويلة + 2 قصيرة)
+      // معاملات: الضلع المستمر beta_c = 0.76، الضلع الحر beta_f = 1.00
+      // P_equiv = 2 × (beta × L_long) + 2 × (beta × L_short)
+      // مبسط: P_equiv = 2 × (L_long + L_short) (للحالة المتصلة من الطرفين)
       const equivPerimeter = 2 * (lLong + lShort);
-      hMin = equivPerimeter / 140;
-      formula = `h = 2(${lLong}+${lShort})/140 = ${equivPerimeter}/140 = ${hMin.toFixed(1)} سم`;
+      hMin = equivPerimeter / TWO_WAY_EQUIVALENT.solidDenominator; // 140
+      formula = `h = 2(${lLong}+${lShort})/${TWO_WAY_EQUIVALENT.solidDenominator} = ${equivPerimeter}/${TWO_WAY_EQUIVALENT.solidDenominator} = ${hMin.toFixed(1)} سم`;
     }
-    // حد أدنى مطلق: 8 سم
-    if (hMin < 8) hMin = 8;
-
   } else if (slabType === 'oneWayRibbed') {
-    // ─── بلاطة هوردي باتجاه واحد ───
-    // α: بسيط=16, مستمر طرف=18.5, مستمر طرفين=21, كابولي=8
-    const alpha = SLAB_ALPHA.oneWayRibbed[condKey as keyof typeof SLAB_ALPHA.oneWayRibbed] || 16;
+    const alpha = SLAB_ALPHA.oneWayRibbed[condKey as keyof typeof SLAB_ALPHA.oneWayRibbed] || 20;
     hMin = span / alpha;
     formula = `h = L/${alpha} = ${span}/${alpha} = ${hMin.toFixed(1)} سم`;
-
   } else if (slabType === 'twoWayRibbed') {
-    // ─── بلاطة هوردي باتجاهين ───
-    // المحيط المكافئ: P_equiv / 120 (بدلاً من 140 للبلاطات المصمتة)
-    if (sideLengths && sideLengths.length === 4 && sideConditions) {
-      const beta = sideConditions.map(c => c === 'free' ? 1.0 : 0.80);
-      const P_equiv = sideLengths.reduce((sum, len, idx) => sum + beta[idx] * len, 0);
-      hMin = P_equiv / 120;
-      formula = `h = P_equiv/120 = ${P_equiv.toFixed(1)}/120 = ${hMin.toFixed(1)} سم`;
+    const lLong = spanLong || span;
+    const lShort = spanShort || span;
+    if (supportCondition === 'بسيط' || supportCondition === 'simple') {
+      hMin = lLong / SLAB_ALPHA.twoWayRibbed.simple;
+      formula = `h = L_long/${SLAB_ALPHA.twoWayRibbed.simple} = ${lLong}/${SLAB_ALPHA.twoWayRibbed.simple} = ${hMin.toFixed(1)} سم`;
     } else {
-      const lLong = spanLong || span;
-      const lShort = spanShort || span;
+      // المحيط المكافئ — البلاطة الهوردي باتجاهين: P_equiv / 120
       const equivPerimeter = 2 * (lLong + lShort);
-      hMin = equivPerimeter / 120;
-      formula = `h = 2(${lLong}+${lShort})/120 = ${equivPerimeter}/120 = ${hMin.toFixed(1)} سم`;
+      hMin = equivPerimeter / TWO_WAY_EQUIVALENT.ribbedDenominator; // 120
+      formula = `h = 2(${lLong}+${lShort})/${TWO_WAY_EQUIVALENT.ribbedDenominator} = ${equivPerimeter}/${TWO_WAY_EQUIVALENT.ribbedDenominator} = ${hMin.toFixed(1)} سم`;
     }
-
   } else if (slabType === 'flatSlab') {
-    // ─── بلاطة فطرية ───
-    // مع تيجان: α = 36, بدون تيجان: α = 32
-    // حد أدنى مطلق: 15 سم
+    // البلاطة الفطرية — الطبعة السادسة 2024
+    // تمييز بين خارجية وداخلية
     if (supportCondition === 'مع تيجان' || supportCondition === 'withDropPanels') {
-      hMin = span / SLAB_ALPHA.flatSlab.withDropPanels;
-      formula = `h = Lmax/${SLAB_ALPHA.flatSlab.withDropPanels} = ${span}/${SLAB_ALPHA.flatSlab.withDropPanels} = ${hMin.toFixed(1)} سم`;
+      const alpha = flatSlabPanelType === 'interior'
+        ? SLAB_ALPHA.flatSlab.withDropInterior   // 38
+        : SLAB_ALPHA.flatSlab.withDropExterior;   // 35
+      hMin = span / alpha;
+      formula = `h = L/${alpha} = ${span}/${alpha} = ${hMin.toFixed(1)} سم (مع تيجان — ${flatSlabPanelType === 'interior' ? 'داخلية' : 'خارجية'})`;
     } else {
-      hMin = span / SLAB_ALPHA.flatSlab.withoutDropPanels;
-      formula = `h = Lmax/${SLAB_ALPHA.flatSlab.withoutDropPanels} = ${span}/${SLAB_ALPHA.flatSlab.withoutDropPanels} = ${hMin.toFixed(1)} سم`;
+      hMin = span / SLAB_ALPHA.flatSlab.withoutDropPanels; // 32
+      formula = `h = L/${SLAB_ALPHA.flatSlab.withoutDropPanels} = ${span}/${SLAB_ALPHA.flatSlab.withoutDropPanels} = ${hMin.toFixed(1)} سم (بدون تيجان)`;
     }
-    // حد أدنى مطلق: 15 سم
-    if (hMin < 15) hMin = 15;
-
+    // السماكة الدنيا المطلقة للبلاطة الفطرية: 150 مم = 15 سم
+    hMin = Math.max(hMin, FLAT_SLAB_CONSTRAINTS.minThicknessCm);
   } else {
     hMin = span / 20;
     formula = `h = L/20`;
@@ -328,24 +390,20 @@ export function checkSlabThickness(params: {
 }
 
 /**
- * فحص شرط السماكة للجوائز الساقطة
+ * فحص شرط السماكة للجوائز — محدث لدعم الساقط والمخفي
+ * الكود العربي السوري 2024 (الطبعة السادسة)
  */
 export function checkBeamThickness(params: {
+  beamType: 'dropped' | 'hidden';
   supportCondition: string;
   span: number;
   hActual: number;
 }): SlabThicknessResult {
-  const { supportCondition, span, hActual } = params;
-
-  const conditionMap: Record<string, string> = {
-    'بسيط': 'simple',
-    'مستمر من طرف واحد': 'oneEndContinuous',
-    'مستمر من طرفين': 'bothEndsContinuous',
-    'كابولي حر': 'cantilever',
-  };
+  const { beamType, supportCondition, span, hActual } = params;
 
   const condKey = conditionMap[supportCondition] || 'simple';
-  const alpha = BEAM_ALPHA[condKey as keyof typeof BEAM_ALPHA] || 16;
+  const alphaObj = BEAM_ALPHA[beamType];
+  const alpha = alphaObj[condKey as keyof typeof alphaObj] || (beamType === 'dropped' ? 14 : 16);
   const hMin = span / alpha;
 
   const safe = hActual >= hMin;
@@ -364,16 +422,11 @@ export function checkBeamThickness(params: {
 // 2. فحص إجهاد التربة للأساسات — حسب النوع
 // ===================================================================
 
-/**
- * فحص إجهاد التربة للأساس المنفرد
- * σ_فعلي = P × 1000 / (L × W)
- * ✅ إذا σ_فعلي ≤ σ_مسموح
- */
 export function checkIsolatedFoundation(params: {
-  load: number;              // الحمولة الكلية (طن)
-  length: number;            // الطول (سم)
-  width: number;             // العرض (سم)
-  allowableStress: number;   // إجهاد التربة المسموح (كغ/سم²)
+  load: number;
+  length: number;
+  width: number;
+  allowableStress: number;
 }): IsolatedFoundationResult {
   const { load, length, width, allowableStress } = params;
   const area = length * width;
@@ -389,32 +442,20 @@ export function checkIsolatedFoundation(params: {
   };
 }
 
-/**
- * فحص الأساس المشترك — حساب اللامركزية
- * 1. e = 0 → توزيع منتظم (مثالي)
- * 2. e ≤ L/6 → شبه منحرف (مقبول)
- * 3. e > L/6 → غير محقق (خطر — دوران)
- */
 export function checkCombinedFoundation(params: {
-  P1: number;                // حمل العمود الخارجي (طن)
-  P2: number;                // حمل العمود الداخلي (طن)
-  S: number;                 // المسافة بين العمودين (سم)
-  L: number;                 // طول الأساس الكلي (سم)
-  B: number;                 // عرض الأساس (سم)
-  L_out: number;             // بروز خارجي قبل العمود الأول (سم)
-  allowableStress: number;   // إجهاد التربة المسموح (كغ/سم²)
+  P1: number;
+  P2: number;
+  S: number;
+  L: number;
+  B: number;
+  L_out: number;
+  allowableStress: number;
 }): CombinedFoundationResult {
   const { P1, P2, S, L, B, L_out, allowableStress } = params;
   const P_total = P1 + P2;
-
-  // موقع المحصلة من حافة القاعدة
   const x_R = (P2 * S) / P_total;
   const x_R_total = x_R + L_out;
-
-  // مركز ثقل القاعدة
   const x_c = L / 2;
-
-  // اللامركزية
   const e = Math.abs(x_R_total - x_c);
 
   let eccentricityCase: EccentricityCase;
@@ -424,21 +465,18 @@ export function checkCombinedFoundation(params: {
   let suggestion: string | undefined;
 
   if (e === 0) {
-    // الحالة المثالية — توزيع منتظم
     eccentricityCase = 'ideal';
     const sigma = (P_total * 1000) / (B * L);
     sigmaMax = sigma;
     sigmaMin = sigma;
     safe = sigma <= allowableStress;
   } else if (e <= L / 6) {
-    // الحالة المقبولة — شبه منحرف
     eccentricityCase = 'acceptable';
     const sigma_avg = (P_total * 1000) / (B * L);
     sigmaMax = sigma_avg * (1 + (6 * e) / L);
     sigmaMin = sigma_avg * (1 - (6 * e) / L);
     safe = sigmaMax <= allowableStress && sigmaMin >= 0;
   } else {
-    // حالة الخطر — دوران
     eccentricityCase = 'danger';
     sigmaMax = 0;
     sigmaMin = 0;
@@ -452,7 +490,7 @@ export function checkCombinedFoundation(params: {
     statusAr: eccentricityCase === 'ideal'
       ? 'الأساس محقق (حالة مثالية) ✅'
       : eccentricityCase === 'acceptable'
-        ? safe ? 'الأساس محقق (شبه منحرف) ✅' : 'الأساس غير محقق (إجهاد exceeds المسموح) ❌'
+        ? safe ? 'الأساس محقق (شبه منحرف) ✅' : 'الأساس غير محقق ❌'
         : 'الأساس غير محقق — خطر دوران ❌',
     eccentricity: Math.round(e * 100) / 100,
     eccentricityCase,
@@ -463,17 +501,13 @@ export function checkCombinedFoundation(params: {
   };
 }
 
-/**
- * فحص الحصيرة — الثقب هو الحاكم
- * vp = R × 1000 / (b0 × d)  مقابل  vcp = 0.9√f'c
- */
 export function checkMatFoundation(params: {
-  columnLoad: number;        // حمل أكبر عمود (طن)
-  matThickness: number;      // سماكة الحصيرة (سم)
-  fc: number;                // المقاومة الاسطوانية المميزة f'c (كغ/سم²)
-  columnWidth?: number;      // عرض العمود (سم) — ل حساب b0
-  columnDepth?: number;      // عمق العمود (سم) — ل حساب b0
-  columnType?: 'center' | 'edge' | 'corner'; // نوع العمود
+  columnLoad: number;
+  matThickness: number;
+  fc: number;
+  columnWidth?: number;
+  columnDepth?: number;
+  columnType?: 'center' | 'edge' | 'corner';
 }): MatFoundationResult {
   const {
     columnLoad, matThickness, fc,
@@ -481,21 +515,16 @@ export function checkMatFoundation(params: {
     columnType = 'center',
   } = params;
 
-  const d = matThickness - 2.5; // العمق الفعال (سم)
+  const d = matThickness - 2.5;
   if (d <= 0) {
     return {
-      safe: false,
-      status: 'غير محقق',
+      safe: false, status: 'غير محقق',
       statusAr: 'العمق الفعال سالب — تحقق من السماكة ❌',
-      vp: 0,
-      vcp: 0,
-      bo: 0,
-      d: 0,
+      vp: 0, vcp: 0, bo: 0, d: 0,
       suggestion: 'زيادة سماكة الحصيرة',
     };
   }
 
-  // محيط المقطع الحرج
   let bo: number;
   if (columnType === 'center') {
     bo = 2 * ((columnWidth + d) + (columnDepth + d));
@@ -505,16 +534,11 @@ export function checkMatFoundation(params: {
     bo = (columnWidth + d) + (columnDepth + d);
   }
 
-  const R = columnLoad * 1000; // كغ
-  const vp = R / (bo * d);    // إجهاد الثقب الفعلي (كغ/سم²)
-  const vcp = WSD.vp_foundation(fc); // 0.9√f'c (كغ/سم²)
+  const R = columnLoad * 1000;
+  const vp = R / (bo * d);
+  const vcp = WSD.vp_foundation(fc);
 
   const safe = vp <= vcp;
-
-  let suggestion: string | undefined;
-  if (!safe) {
-    suggestion = 'خطر: اختراق العمود للحصيرة. يُنصح بزيادة سماكة الحصيرة';
-  }
 
   return {
     safe,
@@ -524,24 +548,16 @@ export function checkMatFoundation(params: {
     vcp: Math.round(vcp * 100) / 100,
     bo: Math.round(bo * 100) / 100,
     d: Math.round(d * 100) / 100,
-    suggestion,
+    suggestion: safe ? undefined : 'خطر: اختراق العمود للحصيرة. يُنصح بزيادة سماكة الحصيرة',
   };
 }
 
-/**
- * فحص الأساس المستمر — لكل 1 متر طولي
- * σ = q × 1000 / (B × 100)
- * ✅ إذا σ ≤ σ_مسموح
- * ❌ يقترح B_min = q × 1000 / σ_مسموح
- */
 export function checkContinuousFoundation(params: {
-  q: number;                 // الحمولة الخطية (طن/م)
-  B: number;                 // عرض الأساس (سم)
-  allowableStress: number;   // إجهاد التربة المسموح (كغ/سم²)
+  q: number;
+  B: number;
+  allowableStress: number;
 }): ContinuousFoundationResult {
   const { q, B, allowableStress } = params;
-
-  // q طن/م → كغ/م بالضرب ×1000 ثم قسمة على 100 سم/م → كغ/سم²
   const actualStress = (q * 1000) / (B * 100);
   const safe = actualStress <= allowableStress;
 
@@ -561,36 +577,24 @@ export function checkContinuousFoundation(params: {
 }
 
 // ===================================================================
-// 3. فحص إجهاد الأعمدة والجدران — المحدث مع المساحة المكافئة
+// 3. فحص إجهاد الأعمدة والجدران — مع المساحة المكافئة
 // ===================================================================
 
-/**
- * فحص إجهاد الضغط للعمود/الجدار — WSD مع المساحة المكافئة ومعامل النحافة
- *
- * الخطوات:
- * 1. A_s = مدخل المستخدم أو 1% من (b×h) حسب الموقع
- * 2. A_eq = (b×h) + (n-1)×A_s
- * 3. σ_فعلي = حمولة × 1000 / A_eq
- * 4. σ_مسموح = 0.3 × f'c
- * 5. λ = H_clear / min(b,h) — إذا > 12: تطبيق معامل تخفيض φ
- * 6. آمن إذا: σ_فعلي ≤ σ_مسموح × φ
- */
 export function checkColumnWallStress(params: {
-  load: number;              // الحمولة الاستثمارية (طن)
-  width: number;             // عرض المقطع b (سم)
-  depth: number;             // طول المقطع h (سم)
-  fc: number;                // المقاومة الاسطوانية f'c (كغ/سم²)
-  n?: number;                // نسبة النمطية (افتراضي 15)
-  As?: number;               // مساحة حديد التسليح (سم²) — إذا لم تدخل تفرض الدنيا
-  H_clear: number;           // الارتفاع الصافي (سم)
-  columnLocation: 'وسطي' | 'طرفي' | 'ركني' | ''; // موقع العمود
+  load: number;
+  width: number;
+  depth: number;
+  fc: number;
+  n?: number;
+  As?: number;
+  H_clear: number;
+  columnLocation: 'وسطي' | 'طرفي' | 'ركني' | '';
 }): ColumnWallResult {
-  const { load, width, depth, fc, n, H_clear, columnLocation } = params;
+  const { load, width, depth, fc, H_clear, columnLocation } = params;
 
-  // 1. نسبة النمطية — وفق الكود العربي السوري: n = 2,000,000 / (15,000 × √f'c)
-  const nVal = n || WSD.getN(fc);
+  // نسبة النمطية — الطبعة السادسة: n = 15
+  const nVal = params.n || WSD.n;
 
-  // 1. مساحة حديد التسليح — إذا لم يدخلها المستخدم تفرض 1%
   let AsProvided = params.As;
   if (!AsProvided || AsProvided <= 0) {
     AsProvided = WSD.min_steel_ratio_column[
@@ -601,20 +605,13 @@ export function checkColumnWallStress(params: {
     ] * (width * depth);
   }
 
-  // 2. المساحة المكافئة
   const Aeq = (width * depth) + (nVal - 1) * AsProvided;
-
-  // 3. الإجهاد الفعلي
   const actualStress = (load * 1000) / Aeq;
+  const allowableStress = WSD.fc_allowable_axial * fc;
 
-  // 4. الإجهاد المسموح
-  const allowableStress = WSD.fc_allowable_axial * fc; // 0.3 × f'c
-
-  // 5. معامل النحافة
   const minDim = Math.min(width, depth);
   const slendernessRatio = H_clear / minDim;
 
-  // 6. معامل التخفيض
   const locationKey = columnLocation === 'وسطي' ? 'center'
     : columnLocation === 'طرفي' ? 'edge'
       : columnLocation === 'ركني' ? 'corner'
@@ -625,10 +622,7 @@ export function checkColumnWallStress(params: {
     reductionFactor = WSD.slenderness_reduction[locationKey as keyof typeof WSD.slenderness_reduction] || 0.6;
   }
 
-  // الإجهاد المسموح الفعّال
   const effectiveAllowable = allowableStress * reductionFactor;
-
-  // الفحص النهائي
   const safe = actualStress <= effectiveAllowable;
 
   return {
@@ -646,19 +640,15 @@ export function checkColumnWallStress(params: {
 }
 
 // ===================================================================
-// 4. فحص إجهاد التربة — القديم (للتوافق مع الأساس المنفرد)
+// 4. فحص إجهاد التربة — القديم (للتوافق)
 // ===================================================================
 
-/**
- * فحص إجهاد التربة للأساسات المنفردة
- * Actual Stress = Load × 1000 / (L × W)
- * @deprecated استخدم checkIsolatedFoundation بدلاً منه
- */
+/** @deprecated استخدم checkIsolatedFoundation بدلاً منه */
 export function checkSoilStress(params: {
-  load: number;     // الحمولة (طن)
-  length: number;   // الطول (سم)
-  width: number;    // العرض (سم)
-  allowableStress: number; // إجهاد التربة المسموح (كغ/سم²)
+  load: number;
+  length: number;
+  width: number;
+  allowableStress: number;
 }): StressCheckResult {
   const { load, length, width, allowableStress } = params;
   const area = length * width;
@@ -675,15 +665,12 @@ export function checkSoilStress(params: {
   };
 }
 
-/**
- * فحص إجهاد الضغط للأعمدة — القديم (للتوافق)
- * @deprecated استخدم checkColumnWallStress بدلاً منه
- */
+/** @deprecated استخدم checkColumnWallStress بدلاً منه */
 export function checkColumnStress(params: {
-  load: number;     // الحمولة الاستثمارية (طن)
-  width: number;    // عرض المقطع (سم)
-  depth: number;    // طول المقطع (سم)
-  fc: number;       // المقاومة الاسطوانية (كغ/سم²)
+  load: number;
+  width: number;
+  depth: number;
+  fc: number;
 }): StressCheckResult {
   const { load, width, depth, fc } = params;
   const area = width * depth;
@@ -703,12 +690,12 @@ export function checkColumnStress(params: {
 
 // ===================================================================
 // 5. فحص الانعطاف (العزم) — Flexure Check (WSD)
-// الكود العربي السوري — الطريقة الكلاسيكية
+// الكود العربي السوري 2024 — الطبعة السادسة — n = 15
 // ===================================================================
 
 /**
- * فحص الانعطاف للبلاطات والجوائز — طريقة التشغيل WSD
- * n = 2,000,000 / (15,000 × √f'c)
+ * فحص الانعطاف — طريقة التشغيل WSD
+ * الطبعة السادسة 2024: n = 15 (ثابتة)
  * kd = (-nAs + √(nAs² + 2nAsbd)) / b
  * jd = d - kd/3
  * fc = 2Mw / (b × kd × jd)
@@ -718,49 +705,61 @@ export function checkColumnStress(params: {
  * مُصلح: kd > kb حيث kb/d = n / (n + fs_مس/fc_مس)
  */
 export function checkFlexure(params: {
-  moment: number;    // العزم المطبق (طن.سم)
-  width: number;     // عرض المقطع (سم)
+  moment: number;       // العزم (طن.سم) — في نظام kg_cm
+  width: number;        // عرض المقطع (سم)
   effectiveDepth: number; // العمق الفعال d (سم)
-  As: number;        // مساحة التسليح (سم²)
-  fc: number;        // f'c (كغ/سم²)
-  fy: number;        // fy (كغ/سم²)
-  isSlab?: boolean;  // هل بلاطة (عرض = 100 سم)؟
+  As: number;           // مساحة التسليح (سم²)
+  fc: number;           // f'c (كغ/سم²)
+  fy: number;           // fy (كغ/سم²)
+  isSlab?: boolean;     // هل بلاطة؟
+  bEffective?: number;  // العرض الفعال لمقطع T (للبلاطة الهوردي)
+  unitSystem?: UnitSystem;
 }): FlexureCheckResult {
-  const { moment, width, effectiveDepth: d, As, fc, fy, isSlab } = params;
+  const { moment, width, effectiveDepth: d, As, fc, fy, isSlab, bEffective, unitSystem = 'kg_cm' } = params;
 
   if (d <= 0) {
     return {
-      safe: false,
-      status: 'غير محقق',
-      statusAr: 'العمق الفعال ≤ 0 ❌',
-      kd: 0, jd: 0, fc: 0, fs: 0,
-      fcAllowable: 0, fsAllowable: 0,
-      n: 0, overReinforced: false,
+      safe: false, status: 'غير محقق', statusAr: 'العمق الفعال ≤ 0 ❌',
+      kd: 0, jd: 0, fc: 0, fs: 0, fcAllowable: 0, fsAllowable: 0, n: 0, overReinforced: false,
     };
   }
 
-  const n = WSD.getN(fc);
-  const b = isSlab ? 100 : width;
-  const Mw = moment * 1000; // تحويل طن.سم إلى كغ.سم
+  const n = WSD.n; // 15 — ثابتة وفق الطبعة السادسة
+  const b = bEffective || (isSlab ? 100 : width);
 
-  // عمق المحور الحيادي
-  // kd = (-nAs + √(nAs² + 2nAsbd)) / b
+  // تحويل العزم حسب نظام الوحدات
+  let Mw: number;
+  if (unitSystem === 'kg_cm') {
+    Mw = moment * 1000; // طن.سم → كغ.سم
+  } else {
+    Mw = moment; // N.mm مباشرة
+  }
+
+  // عمق المحور الحيادي — المعادلة التربيعية
   const nAs = n * As;
   const discriminant = nAs * nAs + 2 * nAs * b * d;
-  const kd = (-nAs + Math.sqrt(discriminant)) / b;
+  const kd = (-nAs + Math.sqrt(Math.max(0, discriminant))) / b;
   const jd = d - kd / 3;
 
   // إجهادات فعلية
-  const fcStress = (2 * Mw) / (b * kd * jd);        // إجهاد الخرسانة (كغ/سم²)
-  const fsStress = Mw / (As * jd);                    // إجهاد الحديد (كغ/سم²)
+  let fcStress: number;
+  let fsStress: number;
+  let fcAllowable: number;
+  let fsAllowable: number;
 
-  // إجهادات مسموحة — الكود العربي السوري WSD
-  const fcAllowable = WSD.fc_allowable_flexure * fc;  // 0.4 × f'c
-  const fsAllowable = WSD.getFsAllowable(fy);         // 0.5 × fy
+  if (unitSystem === 'kg_cm') {
+    fcStress = (2 * Mw) / (b * kd * jd);     // كغ/سم²
+    fsStress = Mw / (As * jd);                 // كغ/سم²
+    fcAllowable = WSD.fc_allowable_flexure * fc; // 0.4 × f'c
+    fsAllowable = WSD.getFsAllowable(fy);        // 0.5 × fy
+  } else {
+    fcStress = (2 * Mw) / (b * kd * jd);     // N/mm²
+    fsStress = Mw / (As * jd);                 // N/mm²
+    fcAllowable = WSD.fc_allowable_flexure * fc; // 0.4 × f'c (MPa)
+    fsAllowable = WSD.getFsAllowable(fy);        // 0.5 × fy (MPa)
+  }
 
-  // فحص التسليح الزائد — طريقة التشغيل WSD
-  // kb/d = n / (n + fs_allowable / fc_allowable)
-  // المقطع مُصلح إذا kd > kb
+  // فحص التسليح الزائد
   const kb_ratio = n / (n + fsAllowable / fcAllowable);
   const kb = kb_ratio * d;
   const overReinforced = kd > kb;
@@ -790,22 +789,33 @@ export function checkFlexure(params: {
 
 /**
  * فحص القص — WSD
- * v = V×1000 / (b × d)
- * vc = 0.5√f'c
- * vmax = 2.5√f'c
+ * الكود العربي السوري 2024 — الطبعة السادسة
+ * kg/cm²: v = V×1000/(b×d), vc = 0.5√f'c, vmax = 2.5√f'c
+ * N/mm²:  v = V/(b×d),      vc = 0.16√f'c, vmax = 0.80√f'c
  */
 export function checkShear(params: {
-  shear: number;       // قوة القص (طن)
-  width: number;       // عرض المقطع b (سم)
+  shear: number;          // قوة القص (طن في نظام kg_cm)
+  width: number;          // عرض المقطع b (سم)
   effectiveDepth: number; // العمق الفعال d (سم)
-  fc: number;          // f'c (كغ/سم²)
+  fc: number;             // f'c
+  unitSystem?: UnitSystem;
 }): ShearCheckResult {
-  const { shear, width, effectiveDepth: d, fc } = params;
+  const { shear, width, effectiveDepth: d, fc, unitSystem = 'kg_cm' } = params;
 
-  const V = shear * 1000; // تحويل إلى كغ
-  const v = V / (width * d); // إجهاد القص الفعلي (كغ/سم²)
-  const vc = WSD.vc(fc); // مقاومة الخرسانة للقص
-  const vmax = WSD.vmax(fc); // الإجهاد الأقصى
+  let v: number;
+  let vc: number;
+  let vmax: number;
+
+  if (unitSystem === 'kg_cm') {
+    const V = shear * 1000; // تحويل إلى كغ
+    v = V / (width * d);
+    vc = WSD.vc_kg(fc);
+    vmax = WSD.vmax_kg(fc);
+  } else {
+    v = shear / (width * d); // N/mm²
+    vc = WSD.vc_MPa(fc);
+    vmax = WSD.vmax_MPa(fc);
+  }
 
   const stirrupsNeeded = v > vc;
   const sectionSafe = v <= vmax;
@@ -823,57 +833,75 @@ export function checkShear(params: {
 
 // ===================================================================
 // 7. حساب الأطواق — Stirrup Calculation (WSD)
+// الكود العربي السوري 2024 — الطبعة السادسة
+// smax عادي: min(d/2, 30 سم) — smax قص عالي: min(d/4, 15 سم)
 // ===================================================================
 
-/**
- * حساب مساحة وتباعد الأطواق
- * s = (Asv × Fs) / ((v - vc) × b)
- * smax = min(d/2, 20)
- */
 export function calculateStirrups(params: {
-  shear: number;           // قوة القص (طن)
-  width: number;           // عرض المقطع b (سم)
-  effectiveDepth: number;  // العمق الفعال d (سم)
-  fc: number;              // f'c (كغ/سم²)
-  fy: number;              // fy (كغ/سم²)
-  stirrupDiameter: number; // قطر الأسوار (مم)
-  stirrupLegs: number;     // عدد فروع الأساور
-  Fs?: number;             // إجهاد الحديد المسموح للأساور — يدخله المستخدم (افتراضي 0.5×fy)
+  shear: number;
+  width: number;
+  effectiveDepth: number;
+  fc: number;
+  fy: number;
+  stirrupDiameter: number;
+  stirrupLegs: number;
+  Fs?: number;
+  unitSystem?: UnitSystem;
 }): StirrupResult {
-  const { shear, width, effectiveDepth: d, fc, fy, stirrupDiameter, stirrupLegs, Fs } = params;
+  const { shear, width, effectiveDepth: d, fc, fy, stirrupDiameter, stirrupLegs, Fs, unitSystem = 'kg_cm' } = params;
 
-  const V = shear * 1000;
-  const v = V / (width * d);
-  const vc = WSD.vc(fc);
-  const FsVal = Fs || 0.5 * fy; // افتراضي 0.5 × fy
+  let v: number;
+  let vc: number;
+  let FsVal: number;
+  let smaxNormal: number;
+  let smaxHighShear: number;
+
+  if (unitSystem === 'kg_cm') {
+    const V = shear * 1000;
+    v = V / (width * d);
+    vc = WSD.vc_kg(fc);
+    FsVal = Fs || 0.5 * fy;
+    smaxNormal = Math.min(d / 2, WSD.smax_stirrup_normal_cm);   // min(d/2, 30)
+    smaxHighShear = Math.min(d / 4, WSD.smax_stirrup_high_shear_cm); // min(d/4, 15)
+  } else {
+    v = shear / (width * d);
+    vc = WSD.vc_MPa(fc);
+    FsVal = Fs || 0.5 * fy;
+    smaxNormal = Math.min(d / 2, 300);   // mm
+    smaxHighShear = Math.min(d / 4, 150); // mm
+  }
+
+  // هل حالة القص عالية؟ (v > 0.5 × vmax أو v > vc بفارق كبير)
+  const isHighShear = v > vc;
 
   // مساحة التسليح المتوفرة
-  const singleBarArea = (Math.PI / 4) * Math.pow(stirrupDiameter / 10, 2); // ملم² إلى سم²
+  const singleBarArea = (Math.PI / 4) * Math.pow(stirrupDiameter / 10, 2);
   const Av_provided = singleBarArea * stirrupLegs;
 
-  // التباعد المطلوب: s = (Asv × Fs) / ((v - vc) × b)
+  // التباعد المطلوب
   const v_excess = v - vc;
   let s: number;
   if (v_excess <= 0) {
-    s = 999; // لا حاجة لأطواق إضافية
+    s = 999;
   } else {
     s = (Av_provided * FsVal) / (v_excess * width);
   }
 
-  // التباعد الأقصى المسموح: min(d/2, 20)
-  const smax = Math.min(d / 2, WSD.smax_stirrup);
-
-  // استخدام التباعد الأقصى
+  // التباعد الأقصى
+  const smax = isHighShear ? smaxHighShear : smaxNormal;
   const useSmax = s >= smax;
   const finalSpacing = useSmax ? smax : Math.floor(s);
 
   // مساحة التسليح المطلوبة
-  const Vs = Math.max(V - vc * width * d, 0);
-  const Av_required = Vs / (FsVal * d);
+  let V_excess_force: number;
+  if (unitSystem === 'kg_cm') {
+    V_excess_force = Math.max(shear * 1000 - vc * width * d, 0);
+  } else {
+    V_excess_force = Math.max(shear - vc * width * d, 0);
+  }
+  const Av_required = V_excess_force / (FsVal * d);
 
-  // فحص الأمان — مقارنة Av/s المتوفرة مع Av/s المطلوبة (وحدات: سم²/سم)
-  // Av/s مطلوبة = Av_required (سم²/سم)
-  // Av/s متوفرة = Av_provided / finalSpacing (سم²/سم)
+  // فحص الأمان
   const Avs_provided = Av_provided / finalSpacing;
   const safe = Avs_provided >= Av_required;
 
@@ -884,66 +912,75 @@ export function calculateStirrups(params: {
     areaRequired: Math.round(Av_required * 1000) / 1000,
     areaProvided: Math.round(Av_provided * 1000) / 1000,
     safe,
+    isHighShear,
   };
 }
 
 // ===================================================================
 // 8. فحص الثقب — Punching Shear Check (WSD)
+// الكود العربي السوري 2024 — الطبعة السادسة
+// b0 على بعد d/2 من وجه العمود
+// معامل eta حسب موقع العمود: وسطي=1.00, طرفي=1.15, ركني=1.30
 // ===================================================================
 
-/**
- * فحص الثقب للبلاطات الفطرية
- * b0 = 2[(colW+d)+(colD+d)]
- * vp = R×1000 / (b0×d)
- * vcp = 0.5√f'c (للبلاطات)
- */
 export function checkPunchingShear(params: {
-  columnWidth: number;    // عرض العمود c1 (سم)
-  columnDepth: number;    // عمق العمود c2 (سم)
-  slabThickness: number;  // سماكة البلاطة h (سم)
-  reaction: number;       // رد فعل العمود (طن)
-  fc: number;             // f'c (كغ/سم²)
-  columnType?: 'center' | 'edge' | 'corner'; // نوع العمود
+  columnWidth: number;
+  columnDepth: number;
+  slabThickness: number;
+  reaction: number;
+  fc: number;
+  columnType?: 'center' | 'edge' | 'corner';
+  unitSystem?: UnitSystem;
 }): PunchingShearResult {
-  const { columnWidth: c1, columnDepth: c2, slabThickness: h, reaction, fc, columnType = 'center' } = params;
+  const { columnWidth: c1, columnDepth: c2, slabThickness: h, reaction, fc, columnType = 'center', unitSystem = 'kg_cm' } = params;
 
-  const d = h - 2.5; // العمق الفعال (سم) — تغطية 2.5 سم
+  const d = h - 2.5; // العمق الفعال (سم)
   if (d <= 0) {
     return {
-      safe: false,
-      status: 'غير محقق',
-      statusAr: 'العمق الفعال سالب ❌',
-      vp: 0,
-      actualStress: 0,
-      bo: 0,
-      formula: '',
+      safe: false, status: 'غير محقق', statusAr: 'العمق الفعال سالب ❌',
+      vp: 0, actualStress: 0, bo: 0, formula: '',
     };
   }
 
-  // محيط المقطع الحرج (على بعد d/2 من وجه العمود)
+  // محيط المقطع الحرج على بعد d/2 من وجه العمود
   let bo: number;
   if (columnType === 'center') {
-    bo = 2 * ((c1 + d) + (c2 + d)); // محيط كامل
+    bo = 2 * ((c1 + d) + (c2 + d));
   } else if (columnType === 'edge') {
-    bo = (c1 + d) + 2 * (c2 + d); // ثلاثة أوجه
+    bo = (c1 + d) + 2 * (c2 + d);
   } else {
-    bo = (c1 + d) + (c2 + d); // وجهان
+    bo = (c1 + d) + (c2 + d);
   }
 
-  const R = reaction * 1000; // تحويل إلى كغ
-  const actualStress = R / (bo * d);
-  const vp = WSD.vp(fc); // 0.5√f'c للبلاطات
+  // معامل eta — الطبعة السادسة 2024
+  const etaMap = { center: 1.00, edge: 1.15, corner: 1.30 };
+  const eta = etaMap[columnType];
+
+  let actualStress: number;
+  let vp: number;
+  let stressUnit: string;
+
+  if (unitSystem === 'kg_cm') {
+    const R = reaction * 1000; // كغ
+    actualStress = (R / (bo * d)) * eta;
+    vp = WSD.vp_kg(fc); // 0.50√f'c (كغ/سم²)
+    stressUnit = 'كغ/سم²';
+  } else {
+    actualStress = (reaction / (bo * d)) * eta;
+    vp = WSD.vp_MPa(fc); // 0.16√f'c (N/mm²)
+    stressUnit = 'N/mm²';
+  }
 
   const safe = actualStress <= vp;
 
   return {
     safe,
     status: safe ? 'محقق' : 'غير محقق',
-    statusAr: safe ? 'آمن (محقق) ✅' : 'غير آمن (غير محقق) — يحتاج زيادة سماكة البلاطة أو إضافة تيجان ❌',
+    statusAr: safe ? 'آمن (محقق) ✅' : 'غير آمن (غير محقق) ❌',
     vp: Math.round(vp * 100) / 100,
     actualStress: Math.round(actualStress * 100) / 100,
     bo: Math.round(bo * 100) / 100,
-    formula: `v = ${Math.round(actualStress * 100) / 100} كغ/سم² ≤ vp = ${Math.round(vp * 100) / 100} كغ/سم²`,
+    formula: `v = ${Math.round(actualStress * 100) / 100} ${stressUnit} × η(${eta}) ≤ vp = ${Math.round(vp * 100) / 100} ${stressUnit}`,
   };
 }
 
@@ -951,9 +988,6 @@ export function checkPunchingShear(params: {
 // 9. مساحة التسليح الدنيا — Minimum Reinforcement
 // ===================================================================
 
-/**
- * حساب نسبة ومساحة التسليح الدنيا
- */
 export function getMinReinforcement(params: {
   fc: number;
   fy: number;
@@ -968,6 +1002,7 @@ export function getMinReinforcement(params: {
   if (element === 'beam') {
     rhoMin = Math.max(0.25 * Math.sqrt(fc) / fy, 200 / fy);
   } else {
+    // الطبعة السادسة 2024: rho_min = 0.0018 لحديد عالي المقاومة
     if (fy >= 420) {
       rhoMin = 0.0018;
     } else if (fy >= 350) {
@@ -985,9 +1020,6 @@ export function getMinReinforcement(params: {
   };
 }
 
-/**
- * مقارنة مساحة التسليح المقدمة مع الدنيا
- */
 export function compareReinforcement(params: {
   AsProvided: number;
   fc: number;
@@ -1008,20 +1040,9 @@ export function compareReinforcement(params: {
 }
 
 // ===================================================================
-// 10. حساب عزم الانعطاف وقوة القص للبلاطات — Slab Moment & Shear
-// الكود العربي السوري 2024 — WSD
+// 10. حساب عزم الانعطاف وقوة القص للبلاطات
 // ===================================================================
 
-/**
- * معاملات العزم والقص حسب طبيعة الاستناد — WSD
- * الكود العربي السوري 2024 — البلاطة باتجاه واحد (شريحة عرض 1م = 100 سم)
- *
- * معاملات العزم الدقيقة:
- * - بسيط:           M⁺ = wL²/8     M⁻ = 0
- * - مستمر من طرف:   M⁺ = wL²/14    M⁻ = wL²/8   (عند المسند المستمر)
- * - مستمر من طرفين: M⁺ = wL²/16    M⁻ = wL²/10  (عند المساند)
- * - كابولي حر:      M⁺ = 0         M⁻ = wL²/2
- */
 export const SLAB_MOMENT_COEFFICIENTS: Record<string, { positive: number; negative: number }> = {
   'بسيط': { positive: 1 / 8, negative: 0 },
   'مستمر من طرف واحد': { positive: 1 / 14, negative: 1 / 8 },
@@ -1029,9 +1050,6 @@ export const SLAB_MOMENT_COEFFICIENTS: Record<string, { positive: number; negati
   'كابولي حر': { positive: 0, negative: 1 / 2 },
 };
 
-/**
- * معاملات القص حسب طبيعة الاستناد — الكود العربي السوري
- */
 export const SLAB_SHEAR_COEFFICIENTS: Record<string, number> = {
   'بسيط': 0.5,
   'مستمر من طرف واحد': 0.6,
@@ -1039,41 +1057,12 @@ export const SLAB_SHEAR_COEFFICIENTS: Record<string, number> = {
   'كابولي حر': 1.0,
 };
 
-// ===================================================================
-// 10-أ. جداول معاملات توزيع الحمل — بلاطة باتجاهين
-// الكود العربي السوري 2024 — طريقة رانكين-غراشوف
-// ===================================================================
-
-/**
- * معامل توزيع الحمل على الاتجاه القصير α_short
- * حسب نسبة r = L_short / L_long وطبيعة الاستناد
- *
- * الجدول مبني على معادلة رانكين-غراشوف:
- *   α_short = 1 / (1 + r⁴)  ← بسيط ومستمر
- *   للكابولي: كل الحمل على الاتجاه الحر
- *
- * الجدول يُعطي معاملات محددة حسب الكود العربي السوري
- */
 export const TWO_WAY_DISTRIBUTION_TABLE: Record<string, number> = {
-  // r = L_short / L_long → معامل الحمل على الاتجاه القصير
-  '1.00': 0.500,
-  '0.95': 0.551,
-  '0.90': 0.606,
-  '0.85': 0.664,
-  '0.80': 0.725,
-  '0.75': 0.787,
-  '0.70': 0.848,
-  '0.65': 0.905,
-  '0.60': 0.952,
-  '0.55': 0.984,
-  '0.50': 1.000,
-  '0.45': 1.000,
-  '0.40': 1.000,
+  '1.00': 0.500, '0.95': 0.551, '0.90': 0.606, '0.85': 0.664,
+  '0.80': 0.725, '0.75': 0.787, '0.70': 0.848, '0.65': 0.905,
+  '0.60': 0.952, '0.55': 0.984, '0.50': 1.000, '0.45': 1.000, '0.40': 1.000,
 };
 
-/**
- * استيفاء خطي من جدول معاملات التوزيع
- */
 function getTwoWayDistributionFactor(ratio: number): number {
   if (ratio >= 1.0) return 0.5;
   if (ratio <= 0.4) return 1.0;
@@ -1081,7 +1070,6 @@ function getTwoWayDistributionFactor(ratio: number): number {
   const keys = Object.keys(TWO_WAY_DISTRIBUTION_TABLE).map(Number).sort((a, b) => a - b);
   const r = Math.round(ratio * 100) / 100;
 
-  // البحث عن أقرب قيمتين
   let lower = keys[0];
   let upper = keys[keys.length - 1];
   for (let i = 0; i < keys.length - 1; i++) {
@@ -1092,7 +1080,6 @@ function getTwoWayDistributionFactor(ratio: number): number {
     }
   }
 
-  // استيفاء خطي
   const valLower = TWO_WAY_DISTRIBUTION_TABLE[lower.toFixed(2)];
   const valUpper = TWO_WAY_DISTRIBUTION_TABLE[upper.toFixed(2)];
   if (upper === lower) return valLower;
@@ -1101,11 +1088,6 @@ function getTwoWayDistributionFactor(ratio: number): number {
   return valLower + t * (valUpper - valLower);
 }
 
-/**
- * معاملات العزم للبلاطة باتجاهين — الكود العربي السوري
- * العزم على كل اتجاه = الحمل الموزع على الاتجاه × معامل العزم
- * معاملات العزم كما في البلاطة باتجاه واحد لكن مع الحمل الموزع
- */
 export const TWO_WAY_MOMENT_COEFFICIENTS: Record<string, { positiveShort: number; negativeShort: number; positiveLong: number; negativeLong: number }> = {
   'بسيط': { positiveShort: 1 / 8, negativeShort: 0, positiveLong: 1 / 8, negativeLong: 0 },
   'مستمر من طرف واحد': { positiveShort: 1 / 14, negativeShort: 1 / 8, positiveLong: 1 / 14, negativeLong: 1 / 8 },
@@ -1113,83 +1095,49 @@ export const TWO_WAY_MOMENT_COEFFICIENTS: Record<string, { positiveShort: number
   'كابولي حر': { positiveShort: 0, negativeShort: 1 / 2, positiveLong: 0, negativeLong: 1 / 2 },
 };
 
-/** نتيجة حساب عزم وقص البلاطة */
 export interface SlabMomentShearResult {
-  /** العظم الموجب عند منتصف المجاز (طن.سم/م) */
   Mpositive: number;
-  /** العظم السالب عند المسند (طن.سم/م) */
   Mnegative: number;
-  /** العظم الحاكم (الأكبر) (طن.سم/م) */
   Mgovernor: number;
-  /** قوة القص (طن/م) */
   V: number;
-  /** الحمل الخطي w (طن/م) — w = load × 1m */
   w: number;
-  /** معامل العزم المستخدم */
   momentCoeffPositive: number;
   momentCoeffNegative: number;
-  /** معامل القص المستخدم */
   shearCoeff: number;
 }
 
-/**
- * حساب عزم الانعطاف وقوة القص للبلاطات
- * الكود العربي السوري 2024 — طريقة التشغيل WSD
- *
- * بلاطة باتجاه واحد:
- *   وحدة الحمولة: طن/م² → شريحة 1م → w = load × 1 (طن/م)
- *   العزم: M = coeff × w × L² (طن.م) → × 100 → طن.سم/م
- *   القص: V = coeff × w × L (طن/م)
- *
- * بلاطة باتجاهين:
- *   توزيع الحمل حسب جداول الكود العربي السوري (رانكين-غراشوف)
- *   α_short = معامل التوزيع من الجدول حسب r = L_short/L_long
- *   w_short = α_short × w
- *   العزم على الاتجاه القصير = معامل × w_short × L_short²
- */
+type SlabSubType = 'oneWaySolid' | 'twoWaySolid' | 'oneWayRibbed' | 'twoWayRibbed' | 'flatSlab';
+
 export function calculateSlabMomentShear(params: {
-  load: number;              // الحمولة (طن/م²)
-  span: number;              // المجاز (سم) — المجاز القصير للبلاطة باتجاهين
-  supportCondition: string;  // طبيعة الاستناد
-  slabType?: SlabSubType;   // نوع البلاطة
-  spanLong?: number;        // المجاز الطويل (سم) — للبلاطة باتجاهين
-  spanShort?: number;       // المجاز القصير (سم) — للبلاطة باتجاهين
+  load: number;
+  span: number;
+  supportCondition: string;
+  slabType?: SlabSubType;
+  spanLong?: number;
+  spanShort?: number;
 }): SlabMomentShearResult {
   const { load, span, supportCondition, slabType, spanLong, spanShort } = params;
 
-  // الحمل الخطي لشريحة 1م
-  let w = load; // طن/م (load × 1m strip)
+  let w = load;
+  let L = span / 100;
 
-  // للمجاز: نستخدم المجاز المناسب
-  let L = span / 100; // سم → متر
-
-  // للبلاطة باتجاهين: معاملات التوزيع حسب جداول الكود العربي السوري
-  let distributionFactor = 1.0; // للبلاطة باتجاه واحد
+  let distributionFactor = 1.0;
   if (slabType === 'twoWaySolid' || slabType === 'twoWayRibbed') {
     const lLong = (spanLong || span) / 100;
     const lShort = (spanShort || span) / 100;
-    L = lShort; // نستخدم المجاز القصير
+    L = lShort;
     const ratio = lShort / lLong;
-
-    // استخدام جدول معاملات التوزيع بدلاً من المعادلة التقريبية
     distributionFactor = getTwoWayDistributionFactor(ratio);
-
-    // الحمل الموزع على الاتجاه القصير
     w = load * distributionFactor;
   }
 
-  // معاملات العزم الدقيقة — الكود العربي السوري
   const momentCoeffs = SLAB_MOMENT_COEFFICIENTS[supportCondition] || SLAB_MOMENT_COEFFICIENTS['بسيط'];
   const shearCoeff = SLAB_SHEAR_COEFFICIENTS[supportCondition] || 0.5;
 
-  // حساب العزم
-  // M = coeff × w × L² (طن.م) → × 100 → طن.سم/م
   const Mpositive = momentCoeffs.positive * w * L * L * 100;
   const Mnegative = momentCoeffs.negative * w * L * L * 100;
   const Mgovernor = Math.max(Mpositive, Mnegative);
 
-  // حساب القص
-  // V = coeff × w × L (طن/م)
   const V = shearCoeff * w * L;
 
   return {
@@ -1204,4 +1152,539 @@ export function calculateSlabMomentShear(params: {
   };
 }
 
-type SlabSubType = 'oneWaySolid' | 'twoWaySolid' | 'oneWayRibbed' | 'twoWayRibbed' | 'flatSlab';
+// ===================================================================
+// 11–18. الدوال المتخصصة — الكود العربي السوري 2024 (الطبعة السادسة)
+// ===================================================================
+
+/**
+ * 11. checkOneWaySolidSlab — فحص البلاطة المصمتة باتجاه واحد
+ * جدول 7-2: alpha = 25 / 27 / 30 / 10
+ * h_min المطلق = 80 مم = 8 سم
+ */
+export function checkOneWaySolidSlab(params: {
+  fc: number; fy: number;
+  supportCondition: string;
+  span: number;          // المجاز (سم)
+  hActual: number;       // السماكة المنفذة (سم)
+  cover: number;         // التغطية (سم)
+  load: number;          // الحمولة (طن/م²)
+  rebarCount: number;    // عدد أسياخ التسليح لكل متر
+  rebarDiameter: number; // قطر التسليح (مم)
+  unitSystem?: UnitSystem;
+}): OneWaySolidSlabResult {
+  const { fc, fy, supportCondition, span, hActual, cover, load, rebarCount, rebarDiameter, unitSystem = 'kg_cm' } = params;
+
+  // 1. فحص السماكة
+  const thickness = checkSlabThickness({
+    slabType: 'oneWaySolid', supportCondition, span, hActual,
+  });
+
+  // 2. حساب العزم والقص
+  const d = hActual > cover ? hActual - cover : 0;
+  const As = rebarCount > 0 && rebarDiameter > 0
+    ? rebarCount * (Math.PI / 4) * Math.pow(rebarDiameter / 10, 2) : 0;
+
+  let flexure: FlexureCheckResult | null = null;
+  let shear: ShearCheckResult | null = null;
+  let reinforcement: OneWaySolidSlabResult['reinforcement'] = null;
+
+  if (load > 0 && d > 0 && fy > 0) {
+    const ms = calculateSlabMomentShear({ load, span, supportCondition, slabType: 'oneWaySolid' });
+
+    if (As > 0 && ms.Mgovernor > 0) {
+      flexure = checkFlexure({
+        moment: ms.Mgovernor, width: 100, effectiveDepth: d, As, fc, fy, isSlab: true, unitSystem,
+      });
+    }
+
+    if (ms.V > 0) {
+      shear = checkShear({ shear: ms.V, width: 100, effectiveDepth: d, fc, unitSystem });
+    }
+
+    if (As > 0 && d > 0) {
+      const rc = compareReinforcement({ AsProvided: As, fc, fy, element: 'slab', width: 100, effectiveDepth: d });
+      reinforcement = {
+        safe: rc.safe, AsProvided: As, AsMin: rc.AsMin,
+        rhoMin: getMinReinforcement({ fc, fy, element: 'slab', width: 100, effectiveDepth: d }).rhoMin,
+      };
+    }
+  }
+
+  const overallSafe = thickness.safe
+    && (!flexure || flexure.safe)
+    && (!shear || shear.safe)
+    && (!reinforcement || reinforcement.safe);
+
+  return {
+    thickness, flexure, shear, reinforcement,
+    overallSafe,
+    overallStatusAr: overallSafe ? 'البلاطة المصمتة (باتجاه واحد) محققة ✅' : 'البلاطة المصمتة (باتجاه واحد) غير محققة ❌',
+  };
+}
+
+/**
+ * 12. checkTwoWaySolidSlab — فحص البلاطة المصمتة باتجاهين
+ * المحيط المكافئ: P_equiv / 140
+ * beta_continuous = 0.76, beta_free = 1.00
+ */
+export function checkTwoWaySolidSlab(params: {
+  fc: number; fy: number;
+  supportCondition: string;
+  spanLong: number;      // المجاز الطويل (سم)
+  spanShort: number;     // المجاز القصير (سم)
+  hActual: number;
+  cover: number;
+  load: number;
+  rebarCountShort: number; rebarDiameterShort: number;
+  rebarCountLong?: number; rebarDiameterLong?: number;
+  unitSystem?: UnitSystem;
+}): TwoWaySolidSlabResult {
+  const { fc, fy, supportCondition, spanLong, spanShort, hActual, cover, load, rebarCountShort, rebarDiameterShort, rebarCountLong, rebarDiameterLong, unitSystem = 'kg_cm' } = params;
+
+  const thickness = checkSlabThickness({
+    slabType: 'twoWaySolid', supportCondition, span: spanLong, hActual, spanLong, spanShort,
+  });
+
+  const d = hActual > cover ? hActual - cover : 0;
+  const AsShort = rebarCountShort > 0 && rebarDiameterShort > 0
+    ? rebarCountShort * (Math.PI / 4) * Math.pow(rebarDiameterShort / 10, 2) : 0;
+
+  let flexureShort: FlexureCheckResult | null = null;
+  let flexureLong: FlexureCheckResult | null = null;
+  let shear: ShearCheckResult | null = null;
+  let reinforcement: TwoWaySolidSlabResult['reinforcement'] = null;
+
+  if (load > 0 && d > 0 && fy > 0) {
+    const ms = calculateSlabMomentShear({
+      load, span: spanShort, supportCondition, slabType: 'twoWaySolid', spanLong, spanShort,
+    });
+
+    if (AsShort > 0 && ms.Mgovernor > 0) {
+      flexureShort = checkFlexure({
+        moment: ms.Mgovernor, width: 100, effectiveDepth: d, As: AsShort, fc, fy, isSlab: true, unitSystem,
+      });
+    }
+
+    // فحص الاتجاه الطويل إذا أدخل المستخدم تسليح
+    if (rebarCountLong && rebarDiameterLong) {
+      const AsLong = rebarCountLong * (Math.PI / 4) * Math.pow(rebarDiameterLong / 10, 2);
+      const distFactor = getTwoWayDistributionFactor(spanShort / spanLong);
+      const wLong = load * (1 - distFactor);
+      const L_m = spanLong / 100;
+      const momentCoeffs = SLAB_MOMENT_COEFFICIENTS[supportCondition] || SLAB_MOMENT_COEFFICIENTS['بسيط'];
+      const MgovernorLong = Math.max(momentCoeffs.positive, momentCoeffs.negative) * wLong * L_m * L_m * 100;
+      if (AsLong > 0 && MgovernorLong > 0) {
+        flexureLong = checkFlexure({
+          moment: MgovernorLong, width: 100, effectiveDepth: d, As: AsLong, fc, fy, isSlab: true, unitSystem,
+        });
+      }
+    }
+
+    if (ms.V > 0) {
+      shear = checkShear({ shear: ms.V, width: 100, effectiveDepth: d, fc, unitSystem });
+    }
+
+    if (AsShort > 0 && d > 0) {
+      const rc = compareReinforcement({ AsProvided: AsShort, fc, fy, element: 'slab', width: 100, effectiveDepth: d });
+      reinforcement = {
+        safe: rc.safe, AsProvided: AsShort, AsMin: rc.AsMin,
+        rhoMin: getMinReinforcement({ fc, fy, element: 'slab', width: 100, effectiveDepth: d }).rhoMin,
+      };
+    }
+  }
+
+  const overallSafe = thickness.safe
+    && (!flexureShort || flexureShort.safe)
+    && (!flexureLong || flexureLong.safe)
+    && (!shear || shear.safe)
+    && (!reinforcement || reinforcement.safe);
+
+  return {
+    thickness, flexureShort, flexureLong, shear, reinforcement,
+    overallSafe,
+    overallStatusAr: overallSafe ? 'البلاطة المصمتة (باتجاهين) محققة ✅' : 'البلاطة المصمتة (باتجاهين) غير محققة ❌',
+  };
+}
+
+/**
+ * 13. checkOneWayRibbedSlab — فحص البلاطة الهوردي باتجاه واحد
+ * جدول 7-4: alpha = 20 / 24 / 28 / 10
+ * شروط هندسية: hf >= 50 مم AND hf >= (مسافة صافية / 10)
+ *              bw >= 100 مم AND bw >= h/3
+ */
+export function checkOneWayRibbedSlab(params: {
+  fc: number; fy: number;
+  supportCondition: string;
+  span: number;
+  hActual: number;       // السماكة الكلية h = hf + ribHeight (سم)
+  hf: number;            // سماكة البلاطة العلوية (سم)
+  bw: number;            // عرض الضلع الخرساني (سم)
+  clearSpacing: number;  // المسافة الصافية بين الأضلاع (سم)
+  cover: number;
+  load: number;
+  rebarCount: number; rebarDiameter: number;
+  unitSystem?: UnitSystem;
+}): OneWayRibbedSlabResult {
+  const { fc, fy, supportCondition, span, hActual, hf, bw, clearSpacing, cover, load, rebarCount, rebarDiameter, unitSystem = 'kg_cm' } = params;
+
+  const thickness = checkSlabThickness({
+    slabType: 'oneWayRibbed', supportCondition, span, hActual,
+  });
+
+  // شروط هندسية
+  const hfMin = Math.max(5, clearSpacing / RIBBED_SLAB_CONSTRAINTS.toppingSpacingCoeff); // 5 سم = 50 مم
+  const bwMin = Math.max(10, hActual / RIBBED_SLAB_CONSTRAINTS.ribWidthThicknessCoeff);  // 10 سم = 100 مم
+
+  const geometricChecks = {
+    toppingThickEnough: hf >= hfMin,
+    ribWidthEnough: bw >= bwMin,
+    hfActual: hf,
+    hfMin: Math.round(hfMin * 100) / 100,
+    bwActual: bw,
+    bwMin: Math.round(bwMin * 100) / 100,
+  };
+
+  const d = hActual > cover ? hActual - cover : 0;
+  const As = rebarCount > 0 && rebarDiameter > 0
+    ? rebarCount * (Math.PI / 4) * Math.pow(rebarDiameter / 10, 2) : 0;
+
+  let flexure: FlexureCheckResult | null = null;
+  let shear: ShearCheckResult | null = null;
+  let reinforcement: OneWayRibbedSlabResult['reinforcement'] = null;
+
+  if (load > 0 && d > 0 && fy > 0) {
+    const ms = calculateSlabMomentShear({ load, span, supportCondition, slabType: 'oneWayRibbed' });
+
+    if (As > 0 && ms.Mgovernor > 0) {
+      // فحص الانعطاف — مقطع T: b_effective = min(bw + hf, bw + 6*hf)
+      const bEff = Math.min(bw + hf, bw + 6 * hf);
+      flexure = checkFlexure({
+        moment: ms.Mgovernor, width: bw, effectiveDepth: d, As, fc, fy, bEffective: bEff, unitSystem,
+      });
+    }
+
+    // فحص القص — على الضلع فقط (b = bw)
+    if (ms.V > 0) {
+      // القص على الضلع: V_rib = V × (spacing / 100)
+      shear = checkShear({ shear: ms.V, width: bw, effectiveDepth: d, fc, unitSystem });
+    }
+
+    if (As > 0 && d > 0) {
+      const rc = compareReinforcement({ AsProvided: As, fc, fy, element: 'slab', width: bw, effectiveDepth: d });
+      reinforcement = {
+        safe: rc.safe, AsProvided: As, AsMin: rc.AsMin,
+        rhoMin: getMinReinforcement({ fc, fy, element: 'slab', width: bw, effectiveDepth: d }).rhoMin,
+      };
+    }
+  }
+
+  const overallSafe = thickness.safe
+    && geometricChecks.toppingThickEnough
+    && geometricChecks.ribWidthEnough
+    && (!flexure || flexure.safe)
+    && (!shear || shear.safe)
+    && (!reinforcement || reinforcement.safe);
+
+  return {
+    thickness, geometricChecks, flexure, shear, reinforcement,
+    overallSafe,
+    overallStatusAr: overallSafe ? 'البلاطة الهوردي (باتجاه واحد) محققة ✅' : 'البلاطة الهوردي (باتجاه واحد) غير محققة ❌',
+  };
+}
+
+/**
+ * 14. checkTwoWayRibbedSlab — فحص البلاطة الهوردي باتجاهين
+ * المحيط المكافئ: P_equiv / 120 (وليس 140)
+ */
+export function checkTwoWayRibbedSlab(params: {
+  fc: number; fy: number;
+  supportCondition: string;
+  spanLong: number; spanShort: number;
+  hActual: number; hf: number; bw: number; clearSpacing: number;
+  cover: number; load: number;
+  rebarCountShort: number; rebarDiameterShort: number;
+  rebarCountLong?: number; rebarDiameterLong?: number;
+  unitSystem?: UnitSystem;
+}): TwoWayRibbedSlabResult {
+  const { fc, fy, supportCondition, spanLong, spanShort, hActual, hf, bw, clearSpacing, cover, load, rebarCountShort, rebarDiameterShort, rebarCountLong, rebarDiameterLong, unitSystem = 'kg_cm' } = params;
+
+  const thickness = checkSlabThickness({
+    slabType: 'twoWayRibbed', supportCondition, span: spanLong, hActual, spanLong, spanShort,
+  });
+
+  const hfMin = Math.max(5, clearSpacing / RIBBED_SLAB_CONSTRAINTS.toppingSpacingCoeff);
+  const bwMin = Math.max(10, hActual / RIBBED_SLAB_CONSTRAINTS.ribWidthThicknessCoeff);
+
+  const geometricChecks = {
+    toppingThickEnough: hf >= hfMin,
+    ribWidthEnough: bw >= bwMin,
+    hfActual: hf,
+    hfMin: Math.round(hfMin * 100) / 100,
+    bwActual: bw,
+    bwMin: Math.round(bwMin * 100) / 100,
+  };
+
+  const d = hActual > cover ? hActual - cover : 0;
+  const AsShort = rebarCountShort > 0 && rebarDiameterShort > 0
+    ? rebarCountShort * (Math.PI / 4) * Math.pow(rebarDiameterShort / 10, 2) : 0;
+
+  let flexureShort: FlexureCheckResult | null = null;
+  let flexureLong: FlexureCheckResult | null = null;
+  let shear: ShearCheckResult | null = null;
+  let reinforcement: TwoWayRibbedSlabResult['reinforcement'] = null;
+
+  if (load > 0 && d > 0 && fy > 0) {
+    const ms = calculateSlabMomentShear({
+      load, span: spanShort, supportCondition, slabType: 'twoWayRibbed', spanLong, spanShort,
+    });
+
+    if (AsShort > 0 && ms.Mgovernor > 0) {
+      const bEff = Math.min(bw + hf, bw + 6 * hf);
+      flexureShort = checkFlexure({
+        moment: ms.Mgovernor, width: bw, effectiveDepth: d, As: AsShort, fc, fy, bEffective: bEff, unitSystem,
+      });
+    }
+
+    if (ms.V > 0) {
+      shear = checkShear({ shear: ms.V, width: bw, effectiveDepth: d, fc, unitSystem });
+    }
+
+    if (AsShort > 0 && d > 0) {
+      const rc = compareReinforcement({ AsProvided: AsShort, fc, fy, element: 'slab', width: bw, effectiveDepth: d });
+      reinforcement = {
+        safe: rc.safe, AsProvided: AsShort, AsMin: rc.AsMin,
+        rhoMin: getMinReinforcement({ fc, fy, element: 'slab', width: bw, effectiveDepth: d }).rhoMin,
+      };
+    }
+  }
+
+  const overallSafe = thickness.safe
+    && geometricChecks.toppingThickEnough
+    && geometricChecks.ribWidthEnough
+    && (!flexureShort || flexureShort.safe)
+    && (!shear || shear.safe)
+    && (!reinforcement || reinforcement.safe);
+
+  return {
+    thickness, geometricChecks, flexureShort, flexureLong, shear, reinforcement,
+    overallSafe,
+    overallStatusAr: overallSafe ? 'البلاطة الهوردي (باتجاهين) محققة ✅' : 'البلاطة الهوردي (باتجاهين) غير محققة ❌',
+  };
+}
+
+/**
+ * 15. checkFlatSlab — فحص البلاطة الفطرية
+ * h_min المطلق = 150 مم = 15 سم
+ * alpha: بدون تيجان=32, مع تيجان خارجية=35, مع تيجان داخلية=38
+ * فحص الثقب مع معاملات eta
+ */
+export function checkFlatSlab(params: {
+  fc: number; fy: number;
+  hasDropPanels: boolean;
+  panelType: 'exterior' | 'interior';
+  span: number;
+  hActual: number;
+  cover: number;
+  load: number;
+  rebarCount: number; rebarDiameter: number;
+  // ثقب
+  columnWidth?: number; columnDepth?: number;
+  columnReaction?: number;
+  columnType?: 'center' | 'edge' | 'corner';
+  unitSystem?: UnitSystem;
+}): FlatSlabResult {
+  const { fc, fy, hasDropPanels, panelType, span, hActual, cover, load, rebarCount, rebarDiameter, columnWidth, columnDepth, columnReaction, columnType = 'center', unitSystem = 'kg_cm' } = params;
+
+  const supportCondition = hasDropPanels ? 'مع تيجان' : 'بدون تيجان';
+
+  const thickness = checkSlabThickness({
+    slabType: 'flatSlab', supportCondition, span, hActual, flatSlabPanelType: panelType,
+  });
+
+  const d = hActual > cover ? hActual - cover : 0;
+  const As = rebarCount > 0 && rebarDiameter > 0
+    ? rebarCount * (Math.PI / 4) * Math.pow(rebarDiameter / 10, 2) : 0;
+
+  let flexure: FlexureCheckResult | null = null;
+  let shear: ShearCheckResult | null = null;
+  let punchingShear: PunchingShearResult | null = null;
+  let reinforcement: FlatSlabResult['reinforcement'] = null;
+
+  if (load > 0 && d > 0 && fy > 0) {
+    const ms = calculateSlabMomentShear({ load, span, supportCondition, slabType: 'flatSlab' });
+
+    if (As > 0 && ms.Mgovernor > 0) {
+      flexure = checkFlexure({
+        moment: ms.Mgovernor, width: 100, effectiveDepth: d, As, fc, fy, isSlab: true, unitSystem,
+      });
+    }
+
+    if (ms.V > 0) {
+      shear = checkShear({ shear: ms.V, width: 100, effectiveDepth: d, fc, unitSystem });
+    }
+
+    if (As > 0 && d > 0) {
+      const rc = compareReinforcement({ AsProvided: As, fc, fy, element: 'slab', width: 100, effectiveDepth: d });
+      reinforcement = {
+        safe: rc.safe, AsProvided: As, AsMin: rc.AsMin,
+        rhoMin: getMinReinforcement({ fc, fy, element: 'slab', width: 100, effectiveDepth: d }).rhoMin,
+      };
+    }
+  }
+
+  // فحص الثقب
+  if (columnWidth && columnDepth && columnReaction && columnWidth > 0 && columnDepth > 0 && columnReaction > 0) {
+    punchingShear = checkPunchingShear({
+      columnWidth, columnDepth, slabThickness: hActual, reaction: columnReaction, fc, columnType, unitSystem,
+    });
+  }
+
+  const overallSafe = thickness.safe
+    && (!flexure || flexure.safe)
+    && (!shear || shear.safe)
+    && (!punchingShear || punchingShear.safe)
+    && (!reinforcement || reinforcement.safe);
+
+  return {
+    thickness, flexure, shear, punchingShear, reinforcement,
+    overallSafe,
+    overallStatusAr: overallSafe ? 'البلاطة الفطرية محققة ✅' : 'البلاطة الفطرية غير محققة ❌',
+  };
+}
+
+/**
+ * 16. checkDroppedBeam — فحص الجائز الساقط
+ * جدول 7-1: alpha = 14 / 15 / 16 / 6
+ * تغطية 4 سم → d = h - 4
+ * smax: عادي min(d/2, 30 سم) — قص عالي min(d/4, 15 سم)
+ */
+export function checkDroppedBeam(params: {
+  fc: number; fy: number;
+  supportCondition: string;
+  span: number;
+  width: number;         // b (سم)
+  depth: number;         // h (سم)
+  cover?: number;        // التغطية (سم) — افتراضي 4
+  moment: number;        // العزم (طن.سم)
+  shear: number;         // القص (طن)
+  rebarCount: number; rebarDiameter: number;
+  stirrupDiameter?: number; stirrupLegs?: number;
+  Fs?: number;
+  unitSystem?: UnitSystem;
+}): DroppedBeamResult {
+  const { fc, fy, supportCondition, span, width, depth, cover = 4, moment, shear: V, rebarCount, rebarDiameter, stirrupDiameter = 8, stirrupLegs = 2, Fs, unitSystem = 'kg_cm' } = params;
+
+  const thickness = checkBeamThickness({ beamType: 'dropped', supportCondition, span, hActual: depth });
+
+  const d = depth > cover ? depth - cover : 0;
+  const As = rebarCount > 0 && rebarDiameter > 0
+    ? rebarCount * (Math.PI / 4) * Math.pow(rebarDiameter / 10, 2) : 0;
+
+  let flexure: FlexureCheckResult | null = null;
+  let shearResult: ShearCheckResult | null = null;
+  let stirrups: StirrupResult | null = null;
+  let reinforcement: DroppedBeamResult['reinforcement'] = null;
+
+  if (moment > 0 && d > 0 && As > 0 && fc > 0 && fy > 0) {
+    flexure = checkFlexure({ moment, width, effectiveDepth: d, As, fc, fy, unitSystem });
+  }
+
+  if (V > 0 && d > 0 && fc > 0) {
+    shearResult = checkShear({ shear: V, width, effectiveDepth: d, fc, unitSystem });
+
+    if (shearResult.stirrupsNeeded && fy > 0) {
+      stirrups = calculateStirrups({
+        shear: V, width, effectiveDepth: d, fc, fy, stirrupDiameter, stirrupLegs, Fs, unitSystem,
+      });
+    }
+  }
+
+  if (As > 0 && d > 0 && fc > 0 && fy > 0) {
+    const rc = compareReinforcement({ AsProvided: As, fc, fy, element: 'beam', width, effectiveDepth: d });
+    reinforcement = {
+      safe: rc.safe, AsProvided: As, AsMin: rc.AsMin,
+      rhoMin: getMinReinforcement({ fc, fy, element: 'beam', width, effectiveDepth: d }).rhoMin,
+    };
+  }
+
+  const overallSafe = thickness.safe
+    && (!flexure || flexure.safe)
+    && (!shearResult || shearResult.safe)
+    && (!stirrups || stirrups.safe)
+    && (!reinforcement || reinforcement.safe);
+
+  return {
+    thickness, flexure, shear: shearResult, stirrups, reinforcement,
+    overallSafe,
+    overallStatusAr: overallSafe ? 'الجائز الساقط محقق ✅' : 'الجائز الساقط غير محقق ❌',
+  };
+}
+
+/**
+ * 17. checkHiddenBeam — فحص الجائز المخفي
+ * جدول 7-1: alpha = 16 / 18 / 20 / 8
+ * تغطية 3.5 سم → d = h - 3.5 (أضيق من الساقط)
+ * smax: عادي min(d/2, 25 سم) — قص عالي min(d/4, 15 سم)
+ */
+export function checkHiddenBeam(params: {
+  fc: number; fy: number;
+  supportCondition: string;
+  span: number;
+  width: number;
+  depth: number;
+  cover?: number;        // افتراضي 3.5 سم (أضيق من الساقط)
+  moment: number;
+  shear: number;
+  rebarCount: number; rebarDiameter: number;
+  stirrupDiameter?: number; stirrupLegs?: number;
+  Fs?: number;
+  unitSystem?: UnitSystem;
+}): HiddenBeamResult {
+  const { fc, fy, supportCondition, span, width, depth, cover = 3.5, moment, shear: V, rebarCount, rebarDiameter, stirrupDiameter = 8, stirrupLegs = 2, Fs, unitSystem = 'kg_cm' } = params;
+
+  const thickness = checkBeamThickness({ beamType: 'hidden', supportCondition, span, hActual: depth });
+
+  const d = depth > cover ? depth - cover : 0;
+  const As = rebarCount > 0 && rebarDiameter > 0
+    ? rebarCount * (Math.PI / 4) * Math.pow(rebarDiameter / 10, 2) : 0;
+
+  let flexure: FlexureCheckResult | null = null;
+  let shearResult: ShearCheckResult | null = null;
+  let stirrups: StirrupResult | null = null;
+  let reinforcement: HiddenBeamResult['reinforcement'] = null;
+
+  if (moment > 0 && d > 0 && As > 0 && fc > 0 && fy > 0) {
+    flexure = checkFlexure({ moment, width, effectiveDepth: d, As, fc, fy, unitSystem });
+  }
+
+  if (V > 0 && d > 0 && fc > 0) {
+    shearResult = checkShear({ shear: V, width, effectiveDepth: d, fc, unitSystem });
+
+    if (shearResult.stirrupsNeeded && fy > 0) {
+      // الجائز المخفي: smax أضيق — عادي 25 سم, قص عالي 15 سم
+      stirrups = calculateStirrups({
+        shear: V, width, effectiveDepth: d, fc, fy, stirrupDiameter, stirrupLegs, Fs, unitSystem,
+      });
+    }
+  }
+
+  if (As > 0 && d > 0 && fc > 0 && fy > 0) {
+    const rc = compareReinforcement({ AsProvided: As, fc, fy, element: 'beam', width, effectiveDepth: d });
+    reinforcement = {
+      safe: rc.safe, AsProvided: As, AsMin: rc.AsMin,
+      rhoMin: getMinReinforcement({ fc, fy, element: 'beam', width, effectiveDepth: d }).rhoMin,
+    };
+  }
+
+  const overallSafe = thickness.safe
+    && (!flexure || flexure.safe)
+    && (!shearResult || shearResult.safe)
+    && (!stirrups || stirrups.safe)
+    && (!reinforcement || reinforcement.safe);
+
+  return {
+    thickness, flexure, shear: shearResult, stirrups, reinforcement,
+    overallSafe,
+    overallStatusAr: overallSafe ? 'الجائز المخفي محقق ✅' : 'الجائز المخفي غير محقق ❌',
+  };
+}

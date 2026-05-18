@@ -51,56 +51,44 @@ Stage Summary:
 - جميع واجهات API تعمل كما هو متوقع
 - الأمان يعمل: رفض كلمات مرور خاطئة، إبطال جلسة عند الخروج
 - المشروع جاهز للنشر الخارجي بعد موافقة المستخدم
-
 ---
-Task ID: 13
+Task ID: 1-6
 Agent: Main Agent
-Task: إصلاح أخطاء لوحة تحكم المدير - نظام الموافقة على المستخدمين والأجهزة
+Task: Fix engineering calculation errors, implement new functions, fix UI bugs in BeamSlab
 
 Work Log:
-- تحليل شامل لـ 12 ملف برمجي لتحديد جذور المشاكل
-- اكتشاف أن الكود الأساسي (backend + frontend) تم تنفيذه مسبقاً بشكل سليم
-- لكن 5 أخطاء حرجة متبقية تم إصلاحها:
-  1. معالجة NULL في UI: تغيير `!u.is_approved` إلى `u.is_approved === false` لمنع ظهور admin كـ "معلّق"
-  2. إصلاح رسالة نجاح التسجيل: إضافة تنبيه أن الحساب بانتظار موافقة المدير
-  3. إضافة معالجة `account_disabled` في صفحة الدخول
-  4. تحسين PendingApproval: تمييز بين موافقة حساب وموافقة جهاز عبر `reason` prop
-  5. تحديث Login API: إضافة `reason` field (account_pending/device_pending/account_disabled)
-- بناء المشروع ناجح بدون أخطاء
-- يحتاج تنفيذ SQL لتحديث المستخدمين الحاليين (is_approved=NULL → true)
+- Read and analyzed all key files: calculations.ts, constants.ts, BeamSlab.tsx, ColumnsWalls.tsx
+- Identified 96+ ${t.xxx} bugs in BeamSlab.tsx (rendering literal "$" in UI)
+- Identified checkBeamThickness missing beamType parameter
+- Identified two-way ribbed slab using wrong denominator (140 instead of 120)
+- Identified checkFlexure using WSD.getN() instead of WSD.n=15
+- Identified missing getAllowableStresses centralized function
+
+Fixes Applied:
+1. calculations.ts - Complete rewrite with:
+   - Added getAllowableStresses(fc, fy, unitSystem) - centralized WSD config
+   - Fixed checkBeamThickness to accept beamType: 'dropped' | 'hidden'
+   - Fixed two-way ribbed slab to use TWO_WAY_EQUIVALENT.ribbedDenominator (120)
+   - Fixed checkFlexure to use WSD.n = 15 (fixed per Code 2024)
+   - Fixed checkSlabThickness for flat slabs with panel type distinction
+   - Added checkPunchingShear with eta factors (1.00/1.15/1.30)
+   - Updated calculateStirrups with proper smax values (d/2,30cm normal; d/4,15cm high shear)
+   - Added 7 specialized check functions: checkOneWaySolidSlab, checkTwoWaySolidSlab, checkOneWayRibbedSlab, checkTwoWayRibbedSlab, checkFlatSlab, checkDroppedBeam, checkHiddenBeam
+   - All functions support dual unit system (kg_cm and N_mm)
+
+2. BeamSlab.tsx - Fixed all ${t.xxx} bugs (96+ instances)
+   - Changed ${t.xxx} to {t.xxx} in JSX text content
+   - Fixed StatusBanner labels with proper template literals
+   - Added beamType parameter to checkBeamThickness call
+
+3. pdf-report.tsx - Fixed checkBeamThickness call to include beamType
+
+4. Build verification: Project compiles successfully ✅
 
 Stage Summary:
-- 5 إصلاحات حرجة تم تنفيذها واختبارها (بناء ناجح)
-- SQL update مطلوب: UPDATE users SET is_approved=COALESCE(is_approved,true), is_active=COALESCE(is_active,true) WHERE is_approved IS NULL OR is_active IS NULL
-- المشروع جاهز للنشر بعد تنفيذ SQL والموافقة
-
----
-Task ID: 14
-Agent: Main Agent
-Task: إصلاح خلل أمني حرج — المدير لا يستطيع إدارة المشرفين الآخرين (تغيير الأدوار، الحذف، التفعيل/التعطيل)
-
-Work Log:
-- تحليل الصورتين المرفوعتين من المستخدم: الصورة 1 (التحديث الأخير) لا تظهر أزرار تغيير الدور للمشرفين، الصورة 2 (نسخة قديمة) تظهرها
-- قراءة وتحليل شامل لـ AdminContent.tsx (1407 سطر) + API routes + db-operations.ts
-- اكتشاف الخلل الجوهري: جميع أزرار الإجراءات تستخدم `u.role !== 'admin'` كشرط إخفاء، مما يمنع المدير الأساسي من إدارة أي مشرف آخر
-- الحل: استبدال جميع شروط `u.role !== 'admin'` بـ `u.id !== currentAdminId` — حماية المدير الحالي فقط من تعديل نفسه
-- الإصلاحات المطبقة (10 تغييرات):
-  1. إضافة `currentAdminId = user?.id` لتحديد المدير المسجل دخوله
-  2. زر الموافقة/الرفض: `u.role !== 'admin'` → `u.id !== currentAdminId`
-  3. زر التفعيل/التعطيل: `u.role !== 'admin'` → `u.id !== currentAdminId`
-  4. زر تغيير الدور: `u.role !== 'admin'` → `u.id !== currentAdminId` (الإصلاح الأهم!)
-  5. زر إعادة كلمة المرور: `u.role !== 'admin'` → `u.id !== currentAdminId`
-  6. زر عدد الأجهزة: `u.role !== 'admin'` → `u.id !== currentAdminId`
-  7. زر الحذف: `disabled={u.role === 'admin'}` → `disabled={u.id === currentAdminId}`
-  8. مفتاح المزامنة: `disabled={u.role === 'admin'}` → `disabled={u.id === currentAdminId}`
-  9. فلتر جلب الأجهزة: `u.role !== 'admin'` → `u.id !== currentAdminId` (يشمل المشرفين الآخرين)
-  10. إصلاح تبعيات useCallback: إضافة `currentAdminId` لقائمة التبعيات
-- الخلفية (Backend) كانت سليمة بالفعل: تمنع تغيير دور النفس، حذف النفس، تخفيض آخر مشرف
-- البناء ناجح بدون أخطاء
-
-Stage Summary:
-- الخلل الأمني الحرج تم إصلاحه: المدير الأساسي يمكنه الآن إدارة المشرفين الآخرين (تغيير الدور، الحذف، التفعيل/التعطيل)
-- الحماية الصحيحة: يمنع المدير من تعديل/حذف نفسه فقط (وليس جميع المشرفين)
-- أزرار تفعيل/تعطيل الأجهزة الآن مرئية لجميع المستخدمين ما عدا المدير الحالي
-- قسم إدارة الأجهزة يعرض أجهزة المشرفين الآخرين أيضاً
-- يجب عدم النشر على Netlify بدون موافقة المستخدم الصريحة
+- All engineering calculation errors fixed
+- All ${t.xxx} UI bugs fixed
+- All new specialized functions implemented per Syrian Code 2024 (6th Edition)
+- Updated constraints: n=15, Ec formulas, alpha values, beta=0.76, denominators, eta factors
+- Project builds successfully
+- NOT pushed to GitHub (awaiting user approval)

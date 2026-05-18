@@ -1136,7 +1136,7 @@ function RenderBeamSlab({ data }: { data: Record<string, unknown> }) {
             // Thickness check
             let thickRes: { safe: boolean; hMin: number } | null = null;
             if (h > 0 && span > 0 && beam.supportCondition) {
-              const tc = checkBeamThickness({ supportCondition: String(beam.supportCondition), span, hActual: h });
+              const tc = checkBeamThickness({ beamType: (String(beam.beamSubType) === 'hidden' ? 'hidden' : 'dropped'), supportCondition: String(beam.supportCondition), span, hActual: h });
               thickRes = { safe: tc.safe, hMin: tc.hMin };
             }
 

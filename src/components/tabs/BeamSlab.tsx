@@ -727,7 +727,7 @@ export default function BeamSlab({ data, onSave }: BeamSlabProps) {
       let hMin = 0;
       let hasThicknessResult = false;
       if (h > 0 && span > 0 && supportCond) {
-        const tc = checkBeamThickness({ supportCondition: supportCond, span, hActual: h });
+        const tc = checkBeamThickness({ beamType: beam.beamSubType, supportCondition: supportCond, span, hActual: h });
         thicknessSafe = tc.safe;
         hMin = tc.hMin;
         hasThicknessResult = true;
@@ -1410,7 +1410,7 @@ export default function BeamSlab({ data, onSave }: BeamSlabProps) {
                                 />
                                 <StatusBanner
                                   safe={result.thicknessSafe}
-                                  label={result.thicknessSafe ? '{t.thicknessCheck} — {t.safeVerified}' : '{t.thicknessCheck} — {t.unsafeNotVerified}'}
+                                  label={result.thicknessSafe ? `${t.thicknessCheck} — ${t.safeVerified}` : `${t.thicknessCheck} — ${t.unsafeNotVerified}`}
                                 />
                               </>
                             )}
@@ -1467,7 +1467,7 @@ export default function BeamSlab({ data, onSave }: BeamSlabProps) {
                                 )}
                                 <StatusBanner
                                   safe={result.flexureSafe}
-                                  label={result.flexureSafe ? '{t.flexureCheck} — {t.safeVerified}' : '{t.flexureCheck} — {t.unsafeNotVerified}'}
+                                  label={result.flexureSafe ? `${t.flexureCheck} — ${t.safeVerified}` : `${t.flexureCheck} — ${t.unsafeNotVerified}`}
                                 />
                               </>
                             )}
@@ -1492,7 +1492,7 @@ export default function BeamSlab({ data, onSave }: BeamSlabProps) {
                                 />
                                 <StatusBanner
                                   safe={result.sectionSafe}
-                                  label={result.sectionSafe ? '{t.shearCheck} — {t.safeVerified}' : '{t.shearCheck} — {t.unsafeNotVerified}'}
+                                  label={result.sectionSafe ? `${t.shearCheck} — ${t.safeVerified}` : `${t.shearCheck} — ${t.unsafeNotVerified}`}
                                 />
                               </>
                             )}
@@ -1514,7 +1514,7 @@ export default function BeamSlab({ data, onSave }: BeamSlabProps) {
                                 />
                                 <StatusBanner
                                   safe={result.rebarSafe}
-                                  label={result.rebarSafe ? '{t.reinforcementCheck} — {t.safeVerified}' : '{t.reinforcementCheck} — {t.unsafeNotVerified}'}
+                                  label={result.rebarSafe ? `${t.reinforcementCheck} — ${t.safeVerified}` : `${t.reinforcementCheck} — ${t.unsafeNotVerified}`}
                                 />
                               </>
                             )}
@@ -1524,7 +1524,7 @@ export default function BeamSlab({ data, onSave }: BeamSlabProps) {
                               <div className="pt-2">
                                 <StatusBanner
                                   safe={result.punchingSafe}
-                                  label={result.punchingSafe ? '{t.punchingCheck} — {t.safeVerified}' : '{t.punchingCheck} — {t.unsafeNotVerified}'}
+                                  label={result.punchingSafe ? `${t.punchingCheck} — ${t.safeVerified}` : `${t.punchingCheck} — ${t.unsafeNotVerified}`}
                                 />
                               </div>
                             )}
@@ -1879,7 +1879,7 @@ export default function BeamSlab({ data, onSave }: BeamSlabProps) {
                                 />
                                 <StatusBanner
                                   safe={result.thicknessSafe}
-                                  label={result.thicknessSafe ? '{t.thicknessCheck} — {t.safeVerified}' : '{t.thicknessCheck} — {t.unsafeNotVerified}'}
+                                  label={result.thicknessSafe ? `${t.thicknessCheck} — ${t.safeVerified}` : `${t.thicknessCheck} — ${t.unsafeNotVerified}`}
                                 />
                               </>
                             )}
@@ -1922,7 +1922,7 @@ export default function BeamSlab({ data, onSave }: BeamSlabProps) {
                                 )}
                                 <StatusBanner
                                   safe={result.flexureSafe}
-                                  label={result.flexureSafe ? '{t.flexureCheck} — {t.safeVerified}' : '{t.flexureCheck} — {t.unsafeNotVerified}'}
+                                  label={result.flexureSafe ? `${t.flexureCheck} — ${t.safeVerified}` : `${t.flexureCheck} — ${t.unsafeNotVerified}`}
                                 />
                               </>
                             )}
@@ -1972,7 +1972,7 @@ export default function BeamSlab({ data, onSave }: BeamSlabProps) {
                                 />
                                 <StatusBanner
                                   safe={result.rebarSafe}
-                                  label={result.rebarSafe ? '{t.reinforcementCheck} — {t.safeVerified}' : '{t.reinforcementCheck} — {t.unsafeNotVerified}'}
+                                  label={result.rebarSafe ? `${t.reinforcementCheck} — ${t.safeVerified}` : `${t.reinforcementCheck} — ${t.unsafeNotVerified}`}
                                 />
                               </>
                             )}
